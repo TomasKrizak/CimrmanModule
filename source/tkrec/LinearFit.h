@@ -54,11 +54,9 @@ namespace tkrec {
     double c = datatools::invalid_real();
     double d = datatools::invalid_real();	
 
-    Likelihood likelihood;
-
     double chi_squared = datatools::invalid_real();
-    double chi_squared_R = datatools::invalid_real();
-    double chi_squared_Z = datatools::invalid_real();
+
+    Likelihood likelihood;
         
     LinearFit(ConstClusterHdl cluster);
     LinearFit(double _phi, double _r, double _theta, double _h);    

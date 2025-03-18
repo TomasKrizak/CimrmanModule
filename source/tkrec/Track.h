@@ -66,7 +66,15 @@ namespace tkrec {
   
     LinearFitHdl fit;
     std::vector<Association> associations;
-	
+    
+    double chi_squared = datatools::invalid_real();
+    double chi_squared_R = datatools::invalid_real();
+    double chi_squared_Z = datatools::invalid_real();
+    
+    double square_error = datatools::invalid_real();
+    double square_error_R = datatools::invalid_real();
+    double square_error_Z = datatools::invalid_real();
+
   public:
 	
     Track() = default;
@@ -86,7 +94,8 @@ namespace tkrec {
     double horizontal_distance_to_line(const Point & point) const;
   
     void update_associations();
-  
+    void evaluate();
+    
     void set_a(double _a);
     void set_b(double _b);
     void set_c(double _c);
@@ -110,30 +119,19 @@ namespace tkrec {
     double get_chi_squared() const;
     double get_chi_squared_R() const;
     double get_chi_squared_Z() const;
-		
-	/*
-    void calculate_tr_hit_points();
-			
+    
     void set_chi_squared(double _chi_squared);
     void set_chi_squared_R(double _chi_squared_R);
     void set_chi_squared_Z(double _chi_squared_Z);
-		
-    void set_quality(double _quality);
-    void set_quality_R(double _quality_R);
-    void set_quality_Z(double _quality_Z);
-		
-    void set_likelihood(double _likelihood);
-    void set_likelihood_R(double _likelihood_R);
-    void set_likelihood_Z(double _likelihood_Z);
-		
-    double get_quality() const;
-    double get_quality_R() const;
-    double get_quality_Z() const;
-		
-    double get_likelihood() const;
-    double get_likelihood_R() const;
-    double get_likelihood_Z() const;
-*/
+    
+    double get_square_error() const;
+    double get_square_error_R() const;
+    double get_square_error_Z() const;
+    
+    void set_square_error(double _square_error);
+    void set_square_error_R(double _square_error_R);
+    void set_square_error_Z(double _square_error_Z);
+    
     void print(std::ostream & out_ = std::cout) const;
     
   };

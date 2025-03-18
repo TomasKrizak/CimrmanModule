@@ -55,6 +55,10 @@ namespace tkrec {
       double polylines_max_vertical_distance = 4.0; ///< mm 
       double polylines_min_tracker_hits_distance = 100.0; ///< mm
       double polylines_max_kink_angle = 120; // degrees??
+      double polylines_max_trajectories_middlepoint_distance = 10.0;
+      double polylines_max_trajectory_endpoints_distance = 75.0;
+      double polylines_max_trajectory_connection_angle = 40;
+      double polylines_min_distance_from_foil = 75.0;
     //};
     void parse(const datatools::properties & config_);
     
@@ -88,6 +92,7 @@ namespace tkrec {
 	
     // step 2: clustering
     void Legendre_transform_cluster_finder();
+    void clusterize(std::vector<ConstTrackerHitHdl> & tracker_hits, std::vector<ClusterHdl> & clusters);
     void find_cluster_Legendre(const std::vector<ConstTrackerHitHdl> & hits, 
                                double & phi_estimate,
                                double & r_estimate) const;
@@ -122,9 +127,11 @@ namespace tkrec {
     void refine_trajectories();
     void remove_wrong_hits_associations(PreclusterSolutionHdl & precluster_solution, TrajectoryHdl & trajectory);
     void refine_clustering(PreclusterSolutionHdl & precluster_solution);
+    void evaluate_trajectory(TrajectoryHdl & trajectory);
     
     // step 7: Combining precluster solutions into all solutions
     void create_solutions();
+    void sort_solutions(std::vector<SolutionHdl> & solutions);
 	    
   private:
 

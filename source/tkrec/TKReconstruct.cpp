@@ -338,15 +338,18 @@ namespace tkrec {
     namespace snedm = snemo::datamodel;
     // creating one clustering solution for each TK solution based on associated hits of individual trajectories
     // (1 falaise cluster = all associated tracker hits of 1 TK trajectory)
-    for(auto & solution : _work_->event.get_solutions())
+    std::vector<SolutionHdl> & solutions = _work_->event.get_solutions(); 
+    for(auto i = 0u; i < solutions.size(); i++)
     {
+      SolutionHdl & solution = solutions[i]; 
       // creating empty clustering solution and adding to TCD bank
       auto htcs = datatools::make_handle<snedm::TrackerClusteringSolution>();
       the_tracker_clustering_data.append_solution(htcs, true);
-      snedm::tracker_clustering_solution & clustering_solution = the_tracker_clustering_data.get_default(); // TODO: get_default should be handled differently
-      clustering_solution.set_solution_id(the_tracker_clustering_data.size() - 1);
       
-      auto & all_unclustered_hits = clustering_solution.get_unclustered_hits();
+      //snedm::tracker_clustering_solution & clustering_solution = the_tracker_clustering_data.get_default(); // TODO: get_default should be handled differently
+      htcs->set_solution_id(the_tracker_clustering_data.size() - 1);
+      
+      auto & all_unclustered_hits = htcs->get_unclustered_hits();
       
       for(auto & precluster_solution : solution->get_precluster_solutions())
       {
@@ -363,8 +366,8 @@ namespace tkrec {
         {
           // creating empty cluster and adding to cluster collection
           snedm::TrackerClusterHdl cluster_handle = datatools::make_handle<snedm::tracker_cluster>();
-          clustering_solution.get_clusters().push_back(cluster_handle);
-          cluster_handle->set_cluster_id(clustering_solution.get_clusters().size() - 1);
+          htcs->get_clusters().push_back(cluster_handle);
+          cluster_handle->set_cluster_id(htcs->get_clusters().size() - 1);
          
           std::vector<TrackHdl> & traj_segments = trajectory->get_segments();
           for(auto & segment : traj_segments)
@@ -389,6 +392,12 @@ namespace tkrec {
         }
       }
     }
+    
+    if(solutions.size() > 0)
+    {
+    	the_tracker_clustering_data.set_default(0);
+    }
+    
     return;
   }
 
@@ -396,12 +405,13 @@ namespace tkrec {
 				      snemo::datamodel::tracker_trajectory_data& the_tracker_trajectory_data) const
   {	
     namespace snedm = snemo::datamodel;
-    for(auto i = 0u; i < _work_->event.get_solutions().size(); i++)
+    std::vector<SolutionHdl> & solutions = _work_->event.get_solutions(); 
+    for(auto i = 0u; i < solutions.size(); i++)
     {
       // clustering and tracking solutions are created with the same ordering as TK solutions
       
       // getting TK solution
-      ConstSolutionHdl solution = _work_->event.get_solutions()[i];
+      ConstSolutionHdl solution = solutions[i];
       
       // getting corresponding falaise clustering solution
       const snedm::TrackerClusteringSolutionHdl & cluster_solution = the_tracker_clustering_data.solutions()[i];
@@ -426,12 +436,19 @@ namespace tkrec {
           trajectory_solution->grab_trajectories().push_back(h_trajectory);
           h_trajectory->set_id(j);
           h_trajectory->set_cluster_handle(cluster_solution->get_clusters()[j]);
-              //trajectory_solution->grab_best_trajectories().insert( i? ); ??
          
-          int side = trajectory->get_segments().front()->get_associations().front().tracker_hit->get_SRL()[0]; //TODO: there must be a better way (like a link to Precluster from PreclusterSolution )
+          //TODO: there must be a better way (like a link to Precluster from PreclusterSolution )
+          int side = trajectory->get_segments().front()->get_associations().front().tracker_hit->get_SRL()[0]; 
+          
           h_trajectory->set_geom_id(geomtools::geom_id(1201, 0, side));
-          h_trajectory->get_fit_infos().set_best(true);
-          //h_trajectory->get_fit_infos().set_algo(snedm::track_fit_algo_type::TRACK_FIT_ALGO_LINE); TODO there is no polyline option
+          
+          snedm::track_fit_infos & fit_infos = h_trajectory->get_fit_infos(); 
+          fit_infos.set_chi2( trajectory->get_chi_squared() );
+          int ndof = 1 + 3 * trajectory->get_segments().size();
+          fit_infos.set_ndof( ndof );          
+          //TODO there is no polyline option
+          fit_infos.set_algo(snedm::track_fit_algo_type::TRACK_FIT_ALGO_LINE); 
+          fit_infos.set_best(true);
 
           // creating and setting tracker_pattern as a line or polyline
           snedm::TrajectoryPatternHdl h_pattern;
@@ -474,6 +491,12 @@ namespace tkrec {
         }
       }
     }
+    
+    if(solutions.size() > 0)
+    {
+    	the_tracker_trajectory_data.set_default_solution(0);
+    }
+    
     return;
   }
 

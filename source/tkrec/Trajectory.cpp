@@ -112,6 +112,66 @@ namespace tkrec {
     return;
   }
   
+  double Trajectory::get_chi_squared() const
+  {
+    return chi_squared;
+  }
+  
+  double Trajectory::get_chi_squared_R() const
+  {
+    return chi_squared_R;
+  }
+  
+  double Trajectory::get_chi_squared_Z() const
+  {
+    return chi_squared_Z;
+  }
+    
+  void Trajectory::set_chi_squared(double _chi_squared)
+  {
+    chi_squared = _chi_squared;
+  }
+  
+  void Trajectory::set_chi_squared_R(double _chi_squared_R)
+  {
+    chi_squared_R = _chi_squared_R;
+  }
+  
+  void Trajectory::set_chi_squared_Z(double _chi_squared_Z)
+  {
+    chi_squared_Z = _chi_squared_Z;
+  }
+  
+  double Trajectory::get_MSE() const
+  {
+    return MSE;
+  }
+  
+  double Trajectory::get_MSE_R() const
+  {
+    return MSE_R;
+  }
+  
+  double Trajectory::get_MSE_Z() const
+  {
+    return MSE_Z;
+  }
+  
+  void Trajectory::set_MSE(double _MSE)
+  {
+    MSE = _MSE;
+  }
+  
+  void Trajectory::set_MSE_R(double _MSE_R)
+  {
+    MSE_R = _MSE_R;
+  }
+  
+  void Trajectory::set_MSE_Z(double _MSE_Z)
+  {
+    MSE_Z = _MSE_Z;
+  }
+  
   void Trajectory::print(std::ostream & out_) const
   {
     out_ <<"Trajectory: " << std::endl;

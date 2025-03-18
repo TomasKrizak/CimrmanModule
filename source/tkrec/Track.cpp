@@ -104,6 +104,49 @@ namespace tkrec {
     }
   }
 
+  void Track::evaluate()
+  {
+    square_error = 0.0;
+    square_error_R = 0.0;
+    square_error_Z = 0.0;
+    
+    chi_squared = 0.0;
+    chi_squared_R = 0.0;
+    chi_squared_Z = 0.0;
+    
+    int no_Z = 0;
+    int no_R = associations.size();
+    
+    double sin_phi = std::sin(fit->phi);
+    double cos_phi = std::cos(fit->phi);
+    for(const auto & association : associations)
+    {
+      const ConstTrackerHitHdl & hit = association.tracker_hit;
+      
+      double distance_R2 =  std::abs(fit->r - hit->get_x() * sin_phi + hit->get_y() * cos_phi); 
+      distance_R2 = std::pow(distance_R2 - hit->get_R(), 2.0);
+      
+      square_error_R += distance_R2;
+      chi_squared_R += (distance_R2 / std::pow(hit->get_sigma_R(), 2.0));
+
+      if(hit->has_valid_Z()) 
+      {
+        const ConstPointHdl point = association.point;
+        no_Z++;
+        double distance_Z2 = std::pow( (hit->get_Z() - point->z) , 2.0);
+        square_error_Z += distance_Z2;
+        chi_squared_Z += (distance_Z2 / std::pow(hit->get_sigma_Z(), 2.0));  
+      }
+    }
+    square_error = square_error_R + square_error_Z;
+    chi_squared = chi_squared_R + chi_squared_Z;     
+    
+    if(no_Z == 0)
+    {
+      square_error_Z = datatools::invalid_real();
+    }
+    return;
+  }
 
   void Track::set_a(double _a)
   {
@@ -231,112 +274,67 @@ namespace tkrec {
       return Point(x, y, (z1 + z2) / 2.0);	
   }
   
-  
-  
 
   double Track::get_chi_squared() const
   {
-    return fit->chi_squared;
-  }
-
-  double Track::get_chi_squared_R() const
-  {
-    return fit->chi_squared_R;
-  }
-
-  double Track::get_chi_squared_Z() const
-  {
-    return fit->chi_squared_Z;
+    return chi_squared;
   }
   
-
-/*
-  void TKtrack::set_chi_squared(double _chi_squared)
+  double Track::get_chi_squared_R() const
+  {
+    return chi_squared_R;
+  }
+  
+  double Track::get_chi_squared_Z() const
+  {
+    return chi_squared_Z;
+  }
+    
+  void Track::set_chi_squared(double _chi_squared)
   {
     chi_squared = _chi_squared;
-    return;
   }
-
-  void TKtrack::set_chi_squared_R(double _chi_squared_R)
+  
+  void Track::set_chi_squared_R(double _chi_squared_R)
   {
     chi_squared_R = _chi_squared_R;
-    return;
   }
-
-  void TKtrack::set_chi_squared_Z(double _chi_squared_Z)
+  
+  void Track::set_chi_squared_Z(double _chi_squared_Z)
   {
     chi_squared_Z = _chi_squared_Z;
-    return;
   }
-  void TKtrack::set_quality(double _quality)
+  
+  double Track::get_square_error() const
   {
-    quality = _quality;
-    return;
+    return square_error;
   }
-
-  void TKtrack::set_quality_R(double _quality_R)
+  
+  double Track::get_square_error_R() const
   {
-    quality_R = _quality_R;
-    return;
+    return square_error_R;
   }
-
-  void TKtrack::set_quality_Z(double _quality_Z)
+  
+  double Track::get_square_error_Z() const
   {
-    quality_Z = _quality_Z;
-    return;
+    return square_error_Z;
   }
-
-  void TKtrack::set_likelihood(double _likelihood)
+  
+  void Track::set_square_error(double _square_error)
   {
-    likelihood = _likelihood;
-    return;
+    square_error = _square_error;
   }
-
-  void TKtrack::set_likelihood_R(double _likelihood_R)
+  
+  void Track::set_square_error_R(double _square_error_R)
   {
-    likelihood_R = _likelihood_R;
-    return;
+    square_error_R = _square_error_R;
   }
-
-  void TKtrack::set_likelihood_Z(double _likelihood_Z)
+  
+  void Track::set_square_error_Z(double _square_error_Z)
   {
-    likelihood_Z = _likelihood_Z;
-    return;
+    square_error_Z = _square_error_Z;
   }
-
-
-
-  double TKtrack::get_quality() const
-  {
-    return quality;
-  } 
-
-  double TKtrack::get_quality_R() const
-  {
-    return quality_R;
-  } 
-
-  double TKtrack::get_quality_Z() const
-  {
-    return quality_Z;
-  } 
-
-  double TKtrack::get_likelihood() const
-  {
-    return likelihood;
-  } 
-
-  double TKtrack::get_likelihood_R() const
-  {
-    return likelihood_R;
-  } 
-
-  double TKtrack::get_likelihood_Z() const
-  {
-    return likelihood_Z;
-  } 
- 
-*/
+  
   void Track::print(std::ostream & out_) const
   {
     out_ << "Track: "
@@ -348,9 +346,9 @@ namespace tkrec {
 	 << ", r = " << fit->r 
 	 << ", theta = " << fit->theta 
 	 << ", h = " << fit->h << std::endl; 
-   /* out_ << "	chi squared: " << fit->chi_squared << std::endl;
-    out_ << "	chi squared R: " << fit->chi_squared_R << std::endl;
-    out_ << "	chi squared Z: " << fit->chi_squared_Z << std::endl;*/
+    out_ << "	chi squared: " << chi_squared << std::endl;
+    out_ << "	chi squared R: " << chi_squared_R << std::endl;
+    out_ << "	chi squared Z: " << chi_squared_Z << std::endl;
     out_ << "	number of associated tracker hits: " << associations.size() << std::endl;
   }
 

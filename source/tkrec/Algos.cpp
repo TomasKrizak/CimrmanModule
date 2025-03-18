@@ -159,6 +159,41 @@ namespace tkrec {
 		  "Invalid polylines_max_kink_angle value");
     }
     
+    if (config_.has_key("polylines_max_trajectories_middlepoint_distance")) {
+      this->polylines_max_trajectories_middlepoint_distance =
+        config_.fetch_real_with_explicit_dimension("polylines_max_trajectories_middlepoint_distance",
+                                                   "length");
+      DT_THROW_IF(this->polylines_max_trajectories_middlepoint_distance < 0.0,
+		  std::logic_error,
+		  "Invalid polylines_max_trajectories_middlepoint_distance value");
+    }
+    
+    if (config_.has_key("polylines_max_trajectory_endpoints_distance")) {
+      this->polylines_max_trajectory_endpoints_distance =
+        config_.fetch_real_with_explicit_dimension("polylines_max_trajectory_endpoints_distance",
+                                                   "length");
+      DT_THROW_IF(this->polylines_max_trajectory_endpoints_distance < 0.0,
+		  std::logic_error,
+		  "Invalid polylines_max_trajectory_endpoints_distance value");
+    }
+    
+    if (config_.has_key("polylines_max_trajectory_connection_angle")) {
+      this->polylines_max_trajectory_connection_angle =
+        config_.fetch_dimensionless_real("polylines_max_trajectory_connection_angle");
+      DT_THROW_IF(this->polylines_max_trajectory_connection_angle < 0.0 || this->polylines_max_trajectory_connection_angle > 180.0,
+		  std::logic_error,
+		  "Invalid polylines_max_trajectory_connection_angle value");
+    }
+    
+    if (config_.has_key("polylines_min_distance_from_foil")) {
+      this->polylines_min_distance_from_foil =
+        config_.fetch_real_with_explicit_dimension("polylines_min_distance_from_foil",
+                                                   "length");
+      DT_THROW_IF(this->polylines_min_distance_from_foil < 0.0,
+		  std::logic_error,
+		  "Invalid polylines_min_distance_from_foil value");   
+    }
+    
     return;
   }
  
@@ -264,7 +299,7 @@ namespace tkrec {
     make_MLM_fits();
     combine_into_precluster_solutions();
     create_line_trajectories();
-    refine_trajectories();
+    //refine_trajectories();
     return;
   }
 
@@ -302,7 +337,7 @@ namespace tkrec {
           break;
         }
       }
-      else // TODO is_delayed? is not prompt?
+      else 
       {
         switch(hit->get_SRL()[0])
         {
@@ -316,7 +351,7 @@ namespace tkrec {
       }
     }
     
-    // additional spatial clustering - cluster separation distance ?? 
+    // additional spatial clustering 
     std::vector<std::vector<ConstTrackerHitHdl>> temp_preclusters = separate_hits(prompt_hits_side0);
     for(auto & prec : temp_preclusters)
     {
@@ -341,6 +376,27 @@ namespace tkrec {
     return;
   }
   
+  
+  // step 2: clustering
+  void Algos::Legendre_transform_cluster_finder()
+  {
+    for(auto & precluster : _event_->get_preclusters())
+    {
+      // clusterizes separatelly every prompt cluster
+      if( precluster->is_prompt() )
+      {        
+        std::vector<ConstTrackerHitHdl> & unclustered_hits = precluster->get_unclustered_tracker_hits(); 
+        std::vector<ClusterHdl> & clusters = precluster->get_clusters();
+
+        // recursively applies Legendre transform and spatial clustering to find linear clusters
+        // creates clusters and removes its tracker hits from "unclustered_hits"
+        clusterize(unclustered_hits, clusters);
+      }
+    }
+    return;
+  }
+  
+  /*
   // step 2: clustering
   void Algos::Legendre_transform_cluster_finder()
   {
@@ -361,8 +417,6 @@ namespace tkrec {
           std::vector<ConstTrackerHitHdl> cluster_hits;
           separate_close_hits_to_line(hits, cluster_hits, phi_estimate, r_estimate, association_distance);
           
-          
-          // TODO needs to be rechecked!!!
           // additional spatial separation to filter coincidental associations to the cluster          
           std::vector<std::vector<ConstTrackerHitHdl>> sub_clusters = separate_hits(cluster_hits);
           
@@ -406,37 +460,99 @@ namespace tkrec {
       }
     }
     return;
+  }*/
+  
+  
+  void Algos::clusterize(std::vector<ConstTrackerHitHdl> & tracker_hits, std::vector<ClusterHdl> & clusters)
+  {
+    if( tracker_hits.size() < 3u ) return;
+    
+    const double association_distance = _config_.clustering_hit_association_distance;
+    
+    // Legendre transform on hits to find phi and r candidates
+    double phi_estimate, r_estimate;
+    find_cluster_Legendre( tracker_hits, phi_estimate, r_estimate );
+    
+    // identifying which tracker hits belong to phi, r line candidate
+    std::vector<ConstTrackerHitHdl> cluster_hits;
+    separate_close_hits_to_line(tracker_hits, cluster_hits, phi_estimate, r_estimate, association_distance);
+    
+    // additional spatial separation to filter coincidental associations to the cluster          
+    std::vector<std::vector<ConstTrackerHitHdl>> sub_clusters = separate_hits(cluster_hits);
+    
+    // finding the biggest group
+    int largest = 0;
+    auto size = 0u;
+    for(auto i = 0u; i < sub_clusters.size(); i++)
+    {
+      if(sub_clusters[i].size() > size)
+      {
+        size = sub_clusters[i].size();
+        largest = i; 
+      }
+    }
+    
+    // creating a cluster from the biggest groups if it has at least 3 hits
+    // putting the rest back into unclustered hits  
+    bool cluster_found = false; 
+    for(auto j = 0u; j < sub_clusters.size(); j++)
+    {
+      if(j == largest && sub_clusters[j].size() > 2u)
+      {
+        // create and add new cluster to the precluster
+        ClusterHdl cluster = std::make_shared<Cluster>( sub_clusters[j], phi_estimate, r_estimate, false );
+        clusters.push_back( cluster );
+        cluster_found = true;
+      }
+      else
+      {
+        // putting the separated hits back into unclustered hits
+        tracker_hits.insert(tracker_hits.end(), sub_clusters[j].begin(), sub_clusters[j].end());
+      }
+    }
+    
+    // meaningful candidate found (repeating the proccess on the rest of hits)
+    if( cluster_found ) 
+    {
+      std::vector<std::vector<ConstTrackerHitHdl>> sub_groups = separate_hits(tracker_hits); 
+      tracker_hits.clear();
+      for(auto & sub_group : sub_groups)
+      {
+        clusterize(sub_group, clusters);
+        tracker_hits.insert(tracker_hits.end(), sub_group.begin(), sub_group.end());
+      }
+    }
   }
+  
   
   void Algos::separate_close_hits_to_line(std::vector<ConstTrackerHitHdl> & hits,
                                           std::vector<ConstTrackerHitHdl> & hits_separated,
                                           const double phi, const double r, const double distance_threshold)
   {
     auto it = hits.begin();
-	  while(it != hits.end())
-	  {
-	    auto & hit = *it;
-		  double R = hit->get_R();
-		  double x = hit->get_x();
-		  double y = hit->get_y();
-		  double distance = std::abs(r - x * std::sin(phi) + y * std::cos(phi)) - R;
-		  
-		  if( std::abs(distance) <= distance_threshold )
-		  {
-			  hits_separated.push_back( std::move(hit) );
-			  it = hits.erase(it);
-		  }
-		  else
-		  {
-		    it++;
-		  }
-	  }
-	  return;
+    while(it != hits.end())
+    {
+      auto & hit = *it;
+      double R = hit->get_R();
+      double x = hit->get_x();
+      double y = hit->get_y();
+      double distance = std::abs(r - x * std::sin(phi) + y * std::cos(phi)) - R;
+      
+      if( std::abs(distance) <= distance_threshold )
+      {
+        hits_separated.push_back( std::move(hit) );
+        it = hits.erase(it);
+      }
+      else
+      {
+        it++;
+      }
+    }
+    return;
   }
   
   void Algos::find_cluster_Legendre(const std::vector<ConstTrackerHitHdl> & hits, double & phi_estimate, double & r_estimate) const
   {
-  
     bool save_sinograms           = _config_.save_sinograms;
     const double zoom_factor      = _config_.clustering_zoom_factor;
     const uint32_t iterations     = _config_.clustering_no_iterations;
@@ -444,22 +560,22 @@ namespace tkrec {
     const uint32_t resolution_r   = _config_.clustering_resolution_r;
     const double max_precision_r  = _config_.clustering_max_initial_precision_r;
     const double sigma            = _config_.clustering_uncertainty;
-   
+
     // TODO: think through the precision logic
-	  //int resolution_r = std::min(int(delta_R / max_precision_r), resolution_r);
-	  
+    //int resolution_r = std::min(int(delta_R / max_precision_r), resolution_r);
+    
     // enclosing tracker hits in a smallest possible rectangle (min_x, max_y) x (min_y, max_y)
-   	std::pair<std::vector<ConstTrackerHitHdl>::const_iterator,
-   	          std::vector<ConstTrackerHitHdl>::const_iterator> minmax_X, minmax_Y;
-   	minmax_X = std::minmax_element(hits.begin(), hits.end(), [](const ConstTrackerHitHdl & hit1, const ConstTrackerHitHdl & hit2)
-   	{ 
-   	  return hit1->get_x() <= hit2->get_x();
-   	});
-   	minmax_Y = std::minmax_element(hits.begin(), hits.end(), [](const ConstTrackerHitHdl & hit1, const ConstTrackerHitHdl & hit2)
-   	{ 
-   	  return hit1->get_y() <= hit2->get_y(); 
-   	});
-   	
+    std::pair<std::vector<ConstTrackerHitHdl>::const_iterator,
+              std::vector<ConstTrackerHitHdl>::const_iterator> minmax_X, minmax_Y;
+    minmax_X = std::minmax_element(hits.begin(), hits.end(), [](const ConstTrackerHitHdl & hit1, const ConstTrackerHitHdl & hit2)
+    { 
+      return hit1->get_x() <= hit2->get_x();
+    });
+    minmax_Y = std::minmax_element(hits.begin(), hits.end(), [](const ConstTrackerHitHdl & hit1, const ConstTrackerHitHdl & hit2)
+    { 
+      return hit1->get_y() <= hit2->get_y(); 
+    });
+    
     double min_x = hits[minmax_X.first - hits.begin()]->get_x() - _geom_.tc_radius;
     double max_x = hits[minmax_X.second - hits.begin()]->get_x() + _geom_.tc_radius;
     double min_y = hits[minmax_Y.first - hits.begin()]->get_y() - _geom_.tc_radius;
@@ -469,86 +585,86 @@ namespace tkrec {
     double center_X = (max_x + min_x) / 2.0;
     double center_Y = (max_y + min_y) / 2.0;
     
-	  // size of region (delta_phi x delta_R) to be investigated
-	  double delta_phi = M_PI;
-	  double delta_R = std::sqrt(std::pow(max_x - min_x, 2.0) + std::pow(max_y - min_y, 2.0));
-	  
+    // size of region (delta_phi x delta_R) to be investigated
+    double delta_phi = M_PI;
+    double delta_R = std::sqrt(std::pow(max_x - min_x, 2.0) + std::pow(max_y - min_y, 2.0));
+
     // peak_phi, peak_R store information about peak candidate
-	  double peak_phi = M_PI / 2.0;
-	  double peak_R = 0.0;
-	  
-	  for(int iter = 0; iter < iterations; iter++)
-	  {
-		  double r_min = peak_R - (delta_R / 2.0);
-		  double r_max = peak_R + (delta_R / 2.0);
-		  double phi_min = peak_phi - (delta_phi / 2.0);
-		  double phi_max = peak_phi + (delta_phi / 2.0);
-		  double offset = delta_phi / (2.0 * resolution_phi);
-		  
-		  TH2F sinograms("sinograms", "sinograms; phi; r",
-		       resolution_phi,
-		       phi_min + offset,
-		       phi_max + offset,
-		       resolution_r,
-		       r_min,
-		       r_max);
-		  
-		  for(auto & hit : hits)
-		  {
-			  // double sigma = hit->get_sigma_R(); // does not work well - better to have global higher sigma
-			  for(int k = 0; k <= resolution_phi; k++)
-			  {
-				  double phi = phi_min + ( k * delta_phi / double(resolution_phi) );
-				  // r - legendre transform of a center of a circle (Hough transform)
-				  double r = (hit->get_x() - center_X) * std::sin(phi) - (hit->get_y() - center_Y) * std::cos(phi);
-				  for(int half = 0; half < 2; half++)
-				  {	
-					  // mu - legendre transform of half circle (+R/-R)
-					  double mu = (r + (2.0 * half - 1.0) * hit->get_R());	
-					  
-					  // gauss is calculated only for -3 to 3 sigma region to cut time							
-					  double r1 = mu - 3.0 * sigma;
-					  double r2 = mu + 3.0 * sigma;
-					  
-					  // bin numbers coresponding to r1 and r2 values
-					  int bin1 = (double(resolution_r) * (r1 - r_min) / (r_max - r_min)) + 1;
-					  int bin2 = (double(resolution_r) * (r2 - r_min) / (r_max - r_min)) + 1;
-					  
-					  // real values of r coresponding to each bin 
-					  double r_j1 = r_min + (r_max - r_min) * double(bin1) / double(resolution_r);
-					  double r_j2;
-					  for(int binj = bin1; binj < bin2 + 1; binj++)
-					  {
-						  r_j2 = r_j1 + (r_max - r_min) / double(resolution_r);
-						  
-						  // average probability density in a bin given by gauss distribution with mean in mu 
-						  double weight = ( std::erf( (r_j2 - mu)/(std::sqrt(2.0)*sigma) ) - std::erf( (r_j1 - mu)/(std::sqrt(2.0)*sigma) ) ) 
-						                / (2.0 * delta_R / double(resolution_r));
-						  
-						  // result is 2D histogram of several sinusoid functions f(phi) in convolution with gauss in r
-						  sinograms.Fill( phi, (r_j2 + r_j1) / 2.0, weight );
-						  r_j1 = r_j2;			
-					  }								
-				  }			
-			  }	
-		  }										
+    double peak_phi = M_PI / 2.0;
+    double peak_R = 0.0;
 
-		  // Get bin number of maximum value
-		  int maxBin = sinograms.GetMaximumBin();
+    for(int iter = 0; iter < iterations; iter++)
+    {
+      double r_min = peak_R - (delta_R / 2.0);
+      double r_max = peak_R + (delta_R / 2.0);
+      double phi_min = peak_phi - (delta_phi / 2.0);
+      double phi_max = peak_phi + (delta_phi / 2.0);
+      double offset = delta_phi / (2.0 * resolution_phi);
 
-		  // Get X and Y values corresponding to the maximum bin
-		  int bin_phi, bin_R, bin_Z;
-		  sinograms.GetBinXYZ(maxBin, bin_phi, bin_R, bin_Z);
-		  peak_phi = sinograms.GetXaxis()->GetBinCenter(bin_phi);
-		  peak_R = sinograms.GetYaxis()->GetBinCenter(bin_R);
+      TH2F sinograms("sinograms", "sinograms; phi; r",
+         resolution_phi,
+         phi_min + offset,
+         phi_max + offset,
+         resolution_r,
+         r_min,
+         r_max);
 
-		  delta_phi = delta_phi / zoom_factor;
-		  delta_R = delta_R / zoom_factor;
+      for(auto & hit : hits)
+      {
+      // double sigma = hit->get_sigma_R(); // does not work well - better to have global higher sigma
+      for(int k = 0; k <= resolution_phi; k++)
+      {
+        double phi = phi_min + ( k * delta_phi / double(resolution_phi) );
+        // r - legendre transform of a center of a circle (Hough transform)
+        double r = (hit->get_x() - center_X) * std::sin(phi) - (hit->get_y() - center_Y) * std::cos(phi);
+        for(int half = 0; half < 2; half++)
+        {	
+          // mu - legendre transform of half circle (+R/-R)
+          double mu = (r + (2.0 * half - 1.0) * hit->get_R());	
 
-		  if( save_sinograms ) 
-		  {
-			  TCanvas c2("sinograms", "sinograms", 1000, 800);
-	      c2.cd();
+          // gauss is calculated only for -3 to 3 sigma region to cut time							
+          double r1 = mu - 3.0 * sigma;
+          double r2 = mu + 3.0 * sigma;
+
+          // bin numbers coresponding to r1 and r2 values
+          int bin1 = (double(resolution_r) * (r1 - r_min) / (r_max - r_min)) + 1;
+          int bin2 = (double(resolution_r) * (r2 - r_min) / (r_max - r_min)) + 1;
+
+          // real values of r coresponding to each bin 
+          double r_j1 = r_min + (r_max - r_min) * double(bin1) / double(resolution_r);
+          double r_j2;
+          for(int binj = bin1; binj < bin2 + 1; binj++)
+          {
+            r_j2 = r_j1 + (r_max - r_min) / double(resolution_r);
+            
+            // average probability density in a bin given by gauss distribution with mean in mu 
+            double weight = ( std::erf( (r_j2 - mu)/(std::sqrt(2.0)*sigma) ) - std::erf( (r_j1 - mu)/(std::sqrt(2.0)*sigma) ) ) 
+                          / (2.0 * delta_R / double(resolution_r));
+            
+            // result is 2D histogram of several sinusoid functions f(phi) in convolution with gauss in r
+            sinograms.Fill( phi, (r_j2 + r_j1) / 2.0, weight );
+            r_j1 = r_j2;			
+            }								
+          }			
+        }	
+      }										
+
+      // Get bin number of maximum value
+      int maxBin = sinograms.GetMaximumBin();
+
+      // Get X and Y values corresponding to the maximum bin
+      int bin_phi, bin_R, bin_Z;
+      sinograms.GetBinXYZ(maxBin, bin_phi, bin_R, bin_Z);
+      peak_phi = sinograms.GetXaxis()->GetBinCenter(bin_phi);
+      peak_R = sinograms.GetYaxis()->GetBinCenter(bin_R);
+
+      delta_phi = delta_phi / zoom_factor;
+      delta_R = delta_R / zoom_factor;
+
+      if( save_sinograms ) 
+      {
+        TCanvas c2("sinograms", "sinograms", 1000, 800);
+        c2.cd();
         sinograms.SetStats(0);
         sinograms.SetContour(100);
         sinograms.Draw("COLZ");
@@ -556,21 +672,21 @@ namespace tkrec {
                         _event_->get_run_number(),
                         _event_->get_event_number(),
                         hits.front()->get_SRL()[0],
-		                    iter));
+                        iter));
         c2.Close();
-	    }
-	  }
-	  
-	  // result should be between -pi and pi
-	  if( peak_phi > M_PI/2.0 )
-	  {
-	    peak_phi -= M_PI;
-	    peak_R *= -1.0;
-	  }
-	  
-	  phi_estimate = peak_phi;
-	  r_estimate  = peak_R + center_X * std::sin(peak_phi) - center_Y * std::cos(peak_phi);
-	  return;
+      }
+    }
+    
+    // result should be between -pi and pi
+    if( peak_phi > M_PI/2.0 )
+    {
+      peak_phi -= M_PI;
+      peak_R *= -1.0;
+    }
+    
+    phi_estimate = peak_phi;
+    r_estimate  = peak_R + center_X * std::sin(peak_phi) - center_Y * std::cos(peak_phi);
+    return;
   }
   
   // step 3: MLM line fitting + ambiguity checking and solving
@@ -612,8 +728,8 @@ namespace tkrec {
     double h = 0.000001;
     for(int i = 0; i < 3; i++)
     {
-	    double derivative = lik.log_likelihood_derivative(phi_0);
-	    phi_0 += -h * derivative / (lik.log_likelihood_derivative(phi_0 + h) - derivative);
+      double derivative = lik.log_likelihood_derivative(phi_0);
+      phi_0 += -h * derivative / (lik.log_likelihood_derivative(phi_0 + h) - derivative);
     }
     double r_0 = (lik.Rr + lik.Rx * std::sin(phi_0) - lik.Ry * std::cos(phi_0)) / lik.R;
     
@@ -632,28 +748,28 @@ namespace tkrec {
     // if at least 2 tracker hits have usable Z position ML fit is calculated
     if( lik.no_Z > 1 )
     {
-	    double denominator = lik.Cov_Zyy * std::pow(std::sin(phi_0), 2.0) 
-	                        + 2.0*(lik.Cov_Zxy) * std::sin(phi_0)*std::cos(phi_0) 
-	                        + lik.Cov_Zxx * std::pow(std::cos(phi_0), 2.0);
-	    
-	    if( denominator != 0.0)
-	    {
-		    double tan_theta = (lik.Cov_Zzy * std::sin(phi_0) + lik.Cov_Zzx * std::cos(phi_0)) / denominator;
-		    double h_temp = (lik.Zz / lik.Z) - (lik.Zx * std::cos(phi_0) + lik.Zy * std::sin(phi_0)) * tan_theta / lik.Z;
-		    
-		    fit->h = h_temp;
-		    fit->theta = std::atan(tan_theta);
+      double denominator = lik.Cov_Zyy * std::pow(std::sin(phi_0), 2.0) 
+                          + 2.0*(lik.Cov_Zxy) * std::sin(phi_0)*std::cos(phi_0) 
+                          + lik.Cov_Zxx * std::pow(std::cos(phi_0), 2.0);
+      
+      if( denominator != 0.0)
+      {
+        double tan_theta = (lik.Cov_Zzy * std::sin(phi_0) + lik.Cov_Zzx * std::cos(phi_0)) / denominator;
+        double h_temp = (lik.Zz / lik.Z) - (lik.Zx * std::cos(phi_0) + lik.Zy * std::sin(phi_0)) * tan_theta / lik.Z;
+        
+        fit->h = h_temp;
+        fit->theta = std::atan(tan_theta);
 
-		    fit->c = tan_theta / std::cos(phi_0);
-		    fit->d = h_temp - r_0 * std::tan(phi_0) * tan_theta;
-	    }
+        fit->c = tan_theta / std::cos(phi_0);
+        fit->d = h_temp - r_0 * std::tan(phi_0) * tan_theta;
+      }
     }
     // in case of only 1 tracker hit Z position the fit goes horizontally at the height of the one tracker hit
     else if( lik.no_Z == 1 ) 
     {
-	    fit->h = lik.Zz / lik.Z;
-	    
-	    fit->d = lik.Zz / lik.Z;
+      fit->h = lik.Zz / lik.Z;
+      
+      fit->d = lik.Zz / lik.Z;
     } 
     
     return;
@@ -664,82 +780,81 @@ namespace tkrec {
     std::vector<ConstTrackerHitHdl> hits = cluster->get_tracker_hits();
     
     // detecting ambiguity type
-	  double x0 = hits.front()->get_x();
-	  double y0 = hits.front()->get_y();
-	  bool ambiguous;
-	  
-	  // type 1 == mirror image along line x = x0 
-	  ambiguous = true;
-	  for(auto i = 1u; i < hits.size(); i++)
-	  {	
-		  if( x0 != hits[i]->get_x() )
-		  {
-			  ambiguous = false;
-			  break;
-		  }
-	  }
-	  if( ambiguous == true )
-	  {
-		  cluster->set_ambiguity_type( 1 );
+    double x0 = hits.front()->get_x();
+    double y0 = hits.front()->get_y();
+    bool ambiguous;
+    
+    // type 1 == mirror image along line x = x0 
+    ambiguous = true;
+    for(auto i = 1u; i < hits.size(); i++)
+    {	
+      if( x0 != hits[i]->get_x() )
+      {
+        ambiguous = false;
+        break;
+      }
+    }
+    if( ambiguous == true )
+    {
+      cluster->set_ambiguity_type( 1 );
+      return;
+    }
+    
+    // type 2 == mirror image along line y = y0 
+    ambiguous = true;
+    for(auto i = 1u; i < hits.size(); i++)
+    {	
+      if( y0 != hits[i]->get_y() )
+      {
+        ambiguous = false;
+        break;
+      }
+    }
+    if( ambiguous == true )
+    {
+    cluster->set_ambiguity_type( 2 );
     	return;
-	  }
-	  
-	  // type 2 == mirror image along line y = y0 
-	  ambiguous = true;
-	  for(auto i = 1u; i < hits.size(); i++)
-	  {	
-		  if( y0 != hits[i]->get_y() )
-		  {
-			  ambiguous = false;
-			  break;
-		  }
-	  }
-	  if( ambiguous == true )
-	  {
-	  	cluster->set_ambiguity_type( 2 );
+    }
+    
+    // type 3 == mirror image along line y = x + (y0-x0) 
+    ambiguous = true;
+    for(auto i = 1u; i < hits.size(); i++)
+    {	
+      if( y0 - hits[i]->get_y() != x0 - hits[i]->get_x() )
+      {
+        ambiguous = false;
+        break;
+      }
+    }
+    if( ambiguous == true )
+    {
+      cluster->set_ambiguity_type( 3 );
+      return;
+    }
+    
+    // type 4 == mirror image along line y = -x + (y0-x0) 
+    ambiguous = true;
+    for(auto i = 1u; i < hits.size(); i++)
+    {	
+      if( y0 - hits[i]->get_y() != hits[i]->get_x() - x0 )
+      {
+        ambiguous = false;
+       break;
+      }
+    }
+    if( ambiguous == true )
+    {
+      cluster->set_ambiguity_type( 4 );
     	return;
-	  }
-	  
-	  // type 3 == mirror image along line y = x + (y0-x0) 
-	  ambiguous = true;
-	  for(auto i = 1u; i < hits.size(); i++)
-	  {	
-		  if( y0 - hits[i]->get_y() != x0 - hits[i]->get_x() )
-		  {
-			  ambiguous = false;
-			  break;
-		  }
-	  }
-	  if( ambiguous == true )
-	  {
-	  	cluster->set_ambiguity_type( 3 );
-    	return;
-	  }
-	  
-	  // type 4 == mirror image along line y = -x + (y0-x0) 
-	  ambiguous = true;
-	  for(auto i = 1u; i < hits.size(); i++)
-	  {	
-		  if( y0 - hits[i]->get_y() != hits[i]->get_x() - x0 )
-		  {
-			  ambiguous = false;
-			  break;
-		  }
-	  }
-	  if( ambiguous == true )
-	  {
-		  cluster->set_ambiguity_type( 4 );
-    	return;
-	  }
+    }
 
-	  cluster->set_ambiguity_type( 0 );
+    cluster->set_ambiguity_type( 0 );
     return;
   }
   
-  
   void Algos::create_mirror_fit(ClusterHdl cluster)
   {  
-	  if( cluster->get_ambiguity_type() == 0 )
+    if( cluster->get_ambiguity_type() == 0 )
     {
       return;
     }
@@ -764,22 +879,22 @@ namespace tkrec {
     switch(cluster->get_ambiguity_type())
     {
     case 1:
-  	  mirror_a = -a0;
-  	  mirror_b = 2.0 * a0 * x0 + b0;
-  	  break;
+      mirror_a = -a0;
+      mirror_b = 2.0 * a0 * x0 + b0;
+      break;
     case 2:
-  	  mirror_a = -a0;
-  	  mirror_b = 2.0 * y0 - b0;
-  	  break;
+      mirror_a = -a0;
+      mirror_b = 2.0 * y0 - b0;
+      break;
     case 3:
-  	  mirror_a = 1.0 / a0;
-  	  mirror_b = y0 - x0 - (b0 / a0) + (y0 - x0) / a0;
-  	  break;
+      mirror_a = 1.0 / a0;
+      mirror_b = y0 - x0 - (b0 / a0) + (y0 - x0) / a0;
+      break;
     case 4:
-  	  mirror_a = 1.0 / a0;
-  	  mirror_b = y0 + x0 + (b0 / a0) - (y0 + x0) / a0;
-  	  break;
-    }	  
+      mirror_a = 1.0 / a0;
+      mirror_b = y0 + x0 + (b0 / a0) - (y0 + x0) / a0;
+      break;
+    }  
     
     double mirror_phi = std::atan(mirror_a);
     double mirror_r = -mirror_b / std::sqrt(mirror_a * mirror_a + 1.0);
@@ -964,10 +1079,11 @@ namespace tkrec {
     return;
   }
   
-  std::vector<std::vector<TrackHdl>> Algos::find_polyline_candidates(std::vector<TrackHdl> & tracks, const int side) const // TODO should be const std::vector<ConstTrackHdl> & tracks
+  std::vector<std::vector<TrackHdl>> Algos::find_polyline_candidates(std::vector<TrackHdl> & tracks, const int side) const
   {
     const double vertical_threshold = _config_.polylines_max_vertical_distance;
     const double min_distance = _config_.polylines_min_tracker_hits_distance;
+    const double min_distance_from_foil = _config_.polylines_min_distance_from_foil;
   
     std::vector<std::vector<TrackHdl>> trajectory_candidates;
     int no_tracks = (int)tracks.size();
@@ -990,7 +1106,7 @@ namespace tkrec {
     for(index ia = 0; ia != no_tracks; ++ia) 
       for(index ja = 0; ja != no_tracks; ++ja)
       {
-	      connections[ia][ja] = false;
+    connections[ia][ja] = false;
       }
 
     // connection candidate (each pair (i, j) of tracks) are filtered based on several criteria 
@@ -998,9 +1114,12 @@ namespace tkrec {
     // x coordinate of the outside border of tracker (side 1) 
     double tracker_x_max = ggLocator.getXCoordOfLayer(1, 8) + _geom_.tc_radius;
     // x coordinate of the inside border (source foil gap) of tracker (side 1)
-    double tracker_x_min = ggLocator.getXCoordOfLayer(1, 0) - _geom_.tc_radius;
+    double tracker_x_min = std::max(ggLocator.getXCoordOfLayer(1, 0) - _geom_.tc_radius, 
+    				     min_distance_from_foil);
     // y coordinate of the border (source foil gap) of tracker (side 1)
     double tracker_y_max = ggLocator.getYCoordOfRow(1, 112) + _geom_.tc_radius;
+    
+    
     for(int i = 0; i < no_tracks; i++)
     {
       TrackHdl track1 = tracks[i];
@@ -1065,17 +1184,13 @@ namespace tkrec {
     // connection_counter stores the number of kink candidates for each linear track
     std::vector<int> connection_counter(no_tracks, 0);
     for(int i = 0; i < no_tracks; i++)
-    {
       for(int j = 0; j < no_tracks; j++)
       {
-	      if(connections[j][i])
-	      {
-		      connection_counter[i]++;
-	      }
+        if(connections[j][i])
+        {
+          connection_counter[i]++;
+        }
       }
-    }
-    // TODO: what if a trajectory has more than 2 candidates? should not happen at all...
-    // I have no idea what to do in that case - losing tracks and tracker hits in the solutions
     
     // connecting the tracks = "trajectorizing"
     std::vector<bool> trajectorized(no_tracks, false);
@@ -1085,15 +1200,15 @@ namespace tkrec {
       if(connection_counter[i] == 0)
       {
         trajectory_candidates.push_back( std::vector<TrackHdl>(1, tracks[i]) );
-	      trajectorized[i] = true;
+        trajectorized[i] = true;
       }
       
       // we look for untrajectorized track with exactly 1 connection = beggining or end of the polyline track
       else if(connection_counter[i] == 1 && not trajectorized[i])
       {
-	      std::vector<TrackHdl> composite_track;
-	      composite_track.push_back(tracks[i]);
-	      trajectorized[i] = true;
+        std::vector<TrackHdl> composite_track;
+        composite_track.push_back(tracks[i]);
+        trajectorized[i] = true;
 
         int next_index = i;
         // for loop ensure that the algorithm stops after no_tracks-1 steps in case that "connection_counter[next_index] == 1" fails
@@ -1105,8 +1220,8 @@ namespace tkrec {
             {
               next_index = j;
               composite_track.push_back(tracks[next_index]);
-	                  trajectorized[next_index] = true;
-	                  break;
+                    trajectorized[next_index] = true;
+                  break;
             }
           }
           // checking for the end od polyline trajectory
@@ -1120,29 +1235,6 @@ namespace tkrec {
     } 
     return trajectory_candidates;
   }
- 
- 
- 
-
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
  
  
   // for a simple trajectory without kinks only the endpoint are created    
@@ -1364,8 +1456,9 @@ namespace tkrec {
     return;
   }
   
-  // step 6: Trajectory refinement - clustering refinement, 
-  // (Potentially maximum likelihood refinement of the polyline fit)
+  // step 6: Trajectory refinement
+  //  - clustering refinement, trajectory connecting, fit quality calculation
+  // (Potentially maximum likelihood refinement of the polyline fits)
   void Algos::refine_trajectories()
   {
   	// proccess is done separately for each precluster
@@ -1386,10 +1479,123 @@ namespace tkrec {
         // trying to add unclustered tracker hits to existing trajectories
         refine_clustering(precluster_solution);
         connect_close_trajectories(precluster_solution);
+        
+        // calculating all fit quality metrics
+        for(auto & trajectory : precluster_solution->get_trajectories())
+        {
+          evaluate_trajectory(trajectory);
+          /*
+          std::cout << "	MSE: " << trajectory->get_MSE() << std::endl;
+          std::cout << "	MSE_R: " << trajectory->get_MSE_R() << std::endl;
+          std::cout << "	MSE_Z: " << trajectory->get_MSE_Z() << std::endl;
+          std::cout << "	chi: " << trajectory->get_chi_squared() << std::endl;
+          std::cout << "	chi_R: " << trajectory->get_chi_squared_R() << std::endl;
+          std::cout << "	chi_Z: " << trajectory->get_chi_squared_Z() << "\n" << std::endl;*/
+        }
       }
     }
     return;
   }
+  
+  // calculates mean square errors and chi squares of trajectories
+  void Algos::evaluate_trajectory(TrajectoryHdl & trajectory)
+  {   
+    double chi_squared = 0.0;
+    double chi_squared_R = 0.0;
+    double chi_squared_Z = 0.0;
+    
+    double MSE = 0.0;
+    double MSE_R = 0.0;
+    double MSE_Z = 0.0;
+  
+    // number of measurements of R and Z used in the fit
+    int no_R = 0;
+    int no_Z = 0;
+    
+    // degrees of freedom
+    int DOF_R = 0;
+    int DOF_Z = 1;
+    
+    for(auto & segment : trajectory->get_segments())
+    {
+      segment->evaluate();
+      
+      const auto & associations = segment->get_associations();
+      int no_R_seg = std::count_if(associations.begin(),
+                           associations.end(),
+                           [](const Association & association){
+                             return association.tracker_hit->has_valid_R();
+                           });
+      no_R += no_R_seg;   
+      int no_Z_seg = std::count_if(associations.begin(),
+                           associations.end(),
+                           [](const Association & association){
+                             return association.tracker_hit->has_valid_Z();
+                           });  
+      no_Z += no_Z_seg;
+      
+      MSE_R += segment->get_square_error_R();
+      MSE_Z += segment->get_square_error_Z();  
+                    
+      chi_squared_R += segment->get_chi_squared_R();
+      chi_squared_Z += segment->get_chi_squared_Z();
+      
+      DOF_R += 2;
+      DOF_Z += 1;
+    }
+    MSE = (MSE_R + MSE_Z);
+    chi_squared = (chi_squared_R + chi_squared_Z);
+    
+    // mean square error is the sum of square errors of all segments divided by the number of measurements
+    MSE_R = MSE_R / double(no_R);
+    if(no_Z == 0)
+    {
+    	MSE_Z = datatools::invalid_real();
+    }
+    else
+    {
+      MSE_Z = MSE_Z / double(no_Z);
+    }
+    MSE = MSE / double(no_R + no_Z);
+    
+    // chi_squared is the sum of chi_squares of all segments divided by number of measurement - DOF
+    if(no_R - DOF_R > 0)
+    {
+      chi_squared_R = chi_squared_R / double(no_R - DOF_R);    
+    }
+    else
+    {
+      chi_squared_R = datatools::invalid_real();
+    }
+    
+    if(no_Z - DOF_Z > 0)
+    {
+      chi_squared_Z = chi_squared_Z / double(no_Z - DOF_Z);
+    }
+    else
+    {
+      chi_squared_Z = datatools::invalid_real();
+    }
+    
+    if(no_R + no_Z - DOF_R - DOF_Z > 0)
+    {
+      chi_squared = chi_squared / double(no_R + no_Z - DOF_R - DOF_Z);    
+    }
+    else
+    {
+      chi_squared_Z = datatools::invalid_real();
+    }
+
+    trajectory->set_MSE( MSE );
+    trajectory->set_MSE_R( MSE_R );
+    trajectory->set_MSE_Z( MSE_Z );
+    
+    trajectory->set_chi_squared( chi_squared );
+    trajectory->set_chi_squared_R( chi_squared_R );
+    trajectory->set_chi_squared_Z( chi_squared_Z );
+    return;
+  }
+  
   
   Point get_middle_point(const Point & point1, const Point & point2)
   {
@@ -1401,12 +1607,12 @@ namespace tkrec {
   } 
   
   
-  // TODO experiment: connecting very close trajectories
+  // connecting very close trajectories with small angles
   void Algos::connect_close_trajectories(PreclusterSolutionHdl & precluster_solution)
   {
-    const double distance_threshold = 10.0;
-    const double trajectory_connection_distance = 75.0;
-    const double max_angle = 40.0;
+    const double distance_threshold = _config_.polylines_max_trajectories_middlepoint_distance;
+    const double trajectory_connection_distance = _config_.polylines_max_trajectory_endpoints_distance;
+    const double max_angle = _config_.polylines_max_trajectory_connection_angle;
     auto i = 0u;
     auto & trajectories = precluster_solution->get_trajectories(); 
     while(i < trajectories.size())
@@ -1433,7 +1639,7 @@ namespace tkrec {
             double distance1 = segment1->horizontal_distance_to_line(middle_point); 
             TrackHdl segment2 = trajectories[j]->get_segments().front();
             double distance2 = segment2->horizontal_distance_to_line(middle_point);             
-		        if( distance1 < distance_threshold && distance2 < distance_threshold )
+            if( distance1 < distance_threshold && distance2 < distance_threshold )
             {
               std::reverse(trajectory_points1.begin(), trajectory_points1.end());
               trajectory_points1.pop_back();
@@ -1475,7 +1681,7 @@ namespace tkrec {
             
             TrackHdl segment2 = trajectories[j]->get_segments().back();
             double distance2 = segment2->horizontal_distance_to_line(middle_point);        
-		        if( distance1 < distance_threshold && distance2 < distance_threshold )
+            if( distance1 < distance_threshold && distance2 < distance_threshold )
             {
               trajectory_points1.front() = std::make_shared<Point>(middle_point);
               trajectory_points2.pop_back();
@@ -1518,7 +1724,7 @@ namespace tkrec {
             
             TrackHdl segment2 = trajectories[j]->get_segments().front();
             double distance2 = segment2->horizontal_distance_to_line(middle_point);   
-		        if( distance1 < distance_threshold && distance2 < distance_threshold )
+            if( distance1 < distance_threshold && distance2 < distance_threshold )
             {
               trajectory_points1.back() = std::make_shared<Point>(middle_point);
               
@@ -1558,7 +1764,7 @@ namespace tkrec {
             
             TrackHdl segment2 = trajectories[j]->get_segments().back();
             double distance2 = segment2->horizontal_distance_to_line(middle_point);
-		        if( distance1 < distance_threshold && distance2 < distance_threshold )
+            if( distance1 < distance_threshold && distance2 < distance_threshold )
             {
               trajectory_points1.back() = std::make_shared<Point>(middle_point);
               trajectory_points2.pop_back();
@@ -1630,7 +1836,6 @@ namespace tkrec {
           j++;
           continue;
         }
-        //std::cout << "erasing hit: " << t_start << "	" << t_j << "	" << t_end << std::endl; // TODO some suspicious behaviour sometimes - needs to recheck
         // erasing the hit association point from the trajectory
         associations.erase(associations.begin() + j);
         
@@ -1641,6 +1846,7 @@ namespace tkrec {
     return;
   }   
     
+  // TODO improve the association criteria for hits near kinks!!!
   // goes through unclustered tracker hits of a precluster solution and checks
   // if it can be associated to some segment of some trajectory
   void Algos::refine_clustering(PreclusterSolutionHdl & precluster_solution)
@@ -1701,14 +1907,15 @@ namespace tkrec {
           double cos_phi = std::cos(segments[k]->get_phi());
           double sin_phi = std::sin(segments[k]->get_phi());
           
-          // checking if the hit is close to the line (segment without bounds) //TODO possible to add vertical distance as well
-		      double distance = std::abs(segments[k]->get_r() - hit_x * sin_phi + hit_y * cos_phi) - hit_R;
-		      if( std::abs(distance) > distance_threshold )
-		      { 
-			      continue;
-		      }
-	        
-	        // checking if the hit is within bounds of the segment
+          // checking if the hit is close to the line (segment without bounds)
+          //TODO possible to add vertical distance as well
+          double distance = std::abs(segments[k]->get_r() - hit_x * sin_phi + hit_y * cos_phi) - hit_R;
+          if( std::abs(distance) > distance_threshold )
+          { 
+                continue;
+          }
+                  
+         // checking if the hit is within bounds of the segment
           double t = hit_x * cos_phi + hit_y * sin_phi;
           bool association_found = false;
           bool trajectory_extention_needed = false;
@@ -1850,40 +2057,104 @@ namespace tkrec {
         }
       }
     }
+    
+    // sorts the solutions based on overall reconstruction qualities
+    // better solutions are first (preliminary)
+    sort_solutions(solutions);
+
+    // TODO: possible to add solution discard criteria 
+    
     return;
+  }
+  
+  bool compare_solutions(const SolutionHdl solution1, const SolutionHdl solution2)
+  {
+    int no_trajectories1 = 0;
+    int no_segments1 = 0;
+    int no_unclustered_hit1 = 0;
+    double chi2_sum1 = 0.0;
+
+    for(auto & precluster_solution : solution1->get_precluster_solutions())
+    {
+      auto & trajectories = precluster_solution->get_trajectories();
+      no_trajectories1 += trajectories.size();
+      for(auto & trajectory : trajectories)
+      {
+        no_segments1 += trajectory->get_segments().size();
+        chi2_sum1 += trajectory->get_chi_squared();
+      }
+      no_unclustered_hit1 += precluster_solution->get_unclustered_tracker_hits().size();
+    }
+    
+    int no_trajectories2 = 0;
+    int no_segments2 = 0;
+    int no_unclustered_hit2 = 0;
+    double chi2_sum2 = 0.0;
+    
+    for(auto & precluster_solution : solution2->get_precluster_solutions())
+    {
+      auto & trajectories = precluster_solution->get_trajectories();
+      no_trajectories2 += trajectories.size();
+      for(auto & trajectory : trajectories)
+      {
+        no_segments2 += trajectory->get_segments().size();
+        chi2_sum2 += trajectory->get_chi_squared();
+      }
+      no_unclustered_hit2 += precluster_solution->get_unclustered_tracker_hits().size();
+    }
+    
+    //TODO how shoudl this work??
+    if( no_segments1 == no_segments2 )
+    {
+      if( no_trajectories1 == no_trajectories2 )
+      {
+        return (chi2_sum2 > chi2_sum1); 
+      }
+      return (no_trajectories2 > no_trajectories1);
+    }
+    else
+    {
+      return (no_segments1 < no_segments2);
+    }
+  }
+  
+  
+  void Algos::sort_solutions(std::vector<SolutionHdl> & solutions)
+  {
+    std::sort(solutions.begin(), solutions.end(), compare_solutions); 
   }
   
   // separates a vector of tracker hits into spatialy distant subgroups (vectors)
   std::vector<std::vector<ConstTrackerHitHdl>> Algos::separate_hits(const std::vector<ConstTrackerHitHdl> & hits)
   {
-	  std::vector<std::vector<ConstTrackerHitHdl>> clusters_temp;
-	  clusters_temp.reserve( hits.size() );
-	  for(const auto & hit : hits)
-	  {
-		  clusters_temp.push_back( std::vector<ConstTrackerHitHdl>(1, hit) );
-	  }
-	  
-	  for(auto & cluster1 : clusters_temp) // inefficient? 
-	  {
-		  for(auto & cluster2 : clusters_temp)
-		  {
-			  if(cluster1 != cluster2 && clusters_close(cluster1, cluster2))
-			  {
-			    std::move(cluster2.begin(), cluster2.end(), std::back_inserter(cluster1));
-			    cluster2.clear(); 
-			  }
-		  }
-	  }
-	  
-	  std::vector<std::vector<ConstTrackerHitHdl>> clusters_out;
-	  for(auto & cluster : clusters_temp)
-	  {
-		  if(!cluster.empty())
-		  {
-			  clusters_out.push_back(cluster);
-		  }
-	  }
-	  return clusters_out;	
+    std::vector<std::vector<ConstTrackerHitHdl>> clusters_temp;
+    clusters_temp.reserve( hits.size() );
+    for(const auto & hit : hits)
+    {
+      clusters_temp.push_back( std::vector<ConstTrackerHitHdl>(1, hit) );
+    }
+    
+    for(auto & cluster1 : clusters_temp)
+    {
+      for(auto & cluster2 : clusters_temp)
+      {
+        if(cluster1 != cluster2 && clusters_close(cluster1, cluster2))
+        {
+          std::move(cluster2.begin(), cluster2.end(), std::back_inserter(cluster1));
+          cluster2.clear(); 
+        }
+      }
+    }
+    
+    std::vector<std::vector<ConstTrackerHitHdl>> clusters_out;
+    for(auto & cluster : clusters_temp)
+    {
+      if(!cluster.empty())
+      {
+        clusters_out.push_back(cluster);
+      }
+    }
+    return clusters_out;	
   }
   
   // checks if the minimum distance between triggered anode wires of two clusters is lower than "preclustering_distance_treshold"
@@ -1891,18 +2162,18 @@ namespace tkrec {
                              const std::vector<ConstTrackerHitHdl> & cluster2) const
   {
   	const double distance_treshold = _config_.clustering_max_distance;
-	  for(const auto & hit1 : cluster1)
-	  {
-		  for(const auto & hit2 : cluster2)
-		  {
-		    // treshold distance of 3 tracker cells
-			  if( std::pow(hit1->get_x() - hit2->get_x(), 2.0) + std::pow(hit1->get_y() - hit2->get_y(), 2.0) < std::pow(distance_treshold, 2.0) )
-			  {
-				  return true;
-			  }
-		  }
-	  }	
-	  return false; 
+    for(const auto & hit1 : cluster1)
+    {
+      for(const auto & hit2 : cluster2)
+      {
+        // treshold distance of 3 tracker cells
+        if( std::pow(hit1->get_x() - hit2->get_x(), 2.0) + std::pow(hit1->get_y() - hit2->get_y(), 2.0) < std::pow(distance_treshold, 2.0) )
+        {
+          return true;
+        }
+      }
+    }	
+    return false; 
   }
 
 
@@ -2056,7 +2327,7 @@ namespace tkrec {
             cluster_hits.push_back(hitPtr);
           }
       }
-    cluster_hits = TKEvent::filter_distant(cluster_hits);//TODO is this good? 
+    cluster_hits = TKEvent::filter_distant(cluster_hits);
     if(cluster_hits.size() < 3)
       {
         return foundClusterHdl;
@@ -2191,7 +2462,6 @@ namespace tkrec {
       tr_points.push_back( kink_point );      
     }
     
-    // TODO add kink limiter
     // finding the start-point of the polyline
     std::vector<Association> & associations1 = segments.front()->get_associations();
     PointHdl & kink_point_front = tr_points[1];
@@ -2250,7 +2520,6 @@ namespace tkrec {
     {
       tr_points.push_back( std::make_shared<Point>(associations2.back().point) );
     }
-    // TODO what if the counts are equal?
     else
     {
       tr_points.push_back( std::make_shared<Point>(associations2.front().point) );
