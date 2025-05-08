@@ -1,3 +1,5 @@
+"Algorithm so intuitive, you would think Jára Cimrman designed it."
+
 Cimrman is a first implementation of the new tracking as a Falaise module. Currently it is based on TKEvent library. This is only a testing version, not the final implementation!
 
 Cimrman takes CD bank as an input a creates a reconstruction and outputs TCD and TTD data banks, meaning it is responsible for clustering of tracker hits and for trajectory reconstruction at the same time. Currently it is able to produce line and polyline trajectories sorted into alternative solutions (tracker_trajectory_solution and tracker_clustering_solution) in case of ambiguous parts of data. 
