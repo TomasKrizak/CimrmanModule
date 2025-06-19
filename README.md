@@ -12,6 +12,8 @@ You can find detailed description of the algorithm, its structure and the deriva
 
 ## Module configuration
 
+See the provided example configuration file *test/testing2/pipeline.conf*. 
+
 1. **General configuration section:**
 	* *visualization*: Creating and saving a png image and 3D object root file for each solution of each event. **Warning:** intended for debugging purposes only, do not use on large datasets unless you want to generate enormous amount of files.
 	* *save_sinograms*: saving the images of sinograms produced during Legendre trasnform based clustering. **Warning:** intended for debugging purposes only, do not use on large datasets unless you want to generate enormous amount of files.
