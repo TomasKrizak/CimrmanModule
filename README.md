@@ -1,10 +1,16 @@
-"Algorithm so intuitive, you would think Jára Cimrman designed it."
+# Cimrman Reconstruction Module
 
-Cimrman is a track reconstruction module for SuperNEMO. It reconstructs charged particle trajectories using a combination of Legendre transform and maximum likelihood methods. Named in tribute to the great Czech thinker Jára Cimrman. The module takes CD bank as an input, reconstructs the trajectories within its own internal structure and outputs both TCD and TTD data banks, meaning it is responsible for clustering of tracker hits and for trajectory reconstruction at the same time. Currently it is able to produce line and polyline trajectories. It also detects ambiguous parts of tracker data and provides all alternative possible solutions (tracker_trajectory_solution and tracker_clustering_solution) in such cases. 
+*"Algorithm so intuitive, you would think Jára Cimrman designed it."*
 
-To obtain the final PTD bank you then need to apply Charged Particle Tracking module that extrapolates the verteces and creates the PTD bank.
+Cimrman is a track reconstruction module for SuperNEMO. It reconstructs charged particle trajectories using a combination of Legendre transform and maximum likelihood methods. Named in tribute to the great Czech thinker Jára Cimrman. The module takes **CD bank as an input**, reconstructs the trajectories within its own internal structure and **outputs both TCD and TTD data banks**, meaning it is responsible for clustering of tracker hits and for trajectory reconstruction at the same time. Currently it is able to produce **line and polyline trajectories**. It also detects ambiguous parts of tracker data and **provides all alternative possible solutions** (*tracker_trajectory_solution* and *tracker_clustering_solution*) in such cases. 
 
-Set of algorithm parameters:
+To obtain the final **PTD bank** you then need to apply **Charged Particle Tracking** module that extrapolates the verteces and creates the PTD bank.
+
+You can find detailed description of the algorithm, its structure and the derivation of all methods in my [Master thesis](https://dspace.cvut.cz/handle/10467/123238).
+
+## Module installation
+
+## Module configuration
 
 1. general section:
 	"visualization": creating and saving a png image and 3D object root file for each solution of each event
