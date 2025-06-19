@@ -1,8 +1,6 @@
 "Algorithm so intuitive, you would think Jára Cimrman designed it."
 
-Cimrman is the first version of the new tracking as a Falaise module.
-
-Cimrman takes CD bank as an input a creates a reconstruction and outputs TCD and TTD data banks, meaning it is responsible for clustering of tracker hits and for trajectory reconstruction at the same time. Currently it is able to produce line and polyline trajectories sorted into alternative solutions (tracker_trajectory_solution and tracker_clustering_solution) in case of ambiguous parts of data. 
+Cimrman is a track reconstruction module for SuperNEMO. It reconstructs charged particle trajectories using a combination of Legendre transform and maximum likelihood methods. Named in tribute to the great Czech thinker Jára Cimrman. The module takes CD bank as an input, reconstructs the trajectories within its own internal structure and outputs both TCD and TTD data banks, meaning it is responsible for clustering of tracker hits and for trajectory reconstruction at the same time. Currently it is able to produce line and polyline trajectories. It also detects ambiguous parts of tracker data and provides all alternative possible solutions (tracker_trajectory_solution and tracker_clustering_solution) in such cases. 
 
 To obtain the final PTD bank you then need to apply Charged Particle Tracking module that extrapolates the verteces and creates the PTD bank.
 
