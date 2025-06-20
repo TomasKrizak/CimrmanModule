@@ -10,13 +10,30 @@ You can find detailed description of the algorithm, its structure and the deriva
 
 ## Module installation
 
+In the future the module will be integrated in Falaise by default, but at the moment the module has to be installed independantly. For this reason, I temporarily provided the installation script install.sh
+
+```
+chmod 755 install.sh
+./install.sh
+```
+
+## Module example usage
+
+```
+
+```
+
 ## Module configuration
 
-See the provided example configuration file *test/testing2/pipeline.conf*. 
+See the provided example configuration file *testing/test2/pipeline.conf*, which contains the default setting. 
 
 1. **General configuration section:**
-	* *visualization*: Creating and saving a png image and 3D object root file for each solution of each event. **Warning:** intended for debugging purposes only, do not use on large datasets unless you want to generate enormous amount of files.
-	* *save_sinograms*: saving the images of sinograms produced during Legendre trasnform based clustering. **Warning:** intended for debugging purposes only, do not use on large datasets unless you want to generate enormous amount of files.
+	* *visualization*: Creating and saving a png image and 3D object root file for each solution of each event.
+
+     	**Warning:** intended for debugging purposes only, do not use on large datasets unless you want to generate enormous amount of files.
+	* *save_sinograms*: saving the images of sinograms produced during Legendre trasnform based clustering.
+
+     	**Warning:** intended for debugging purposes only, do not use on large datasets unless you want to generate enormous amount of files.
 	* *force_default_sigma_r*: not using the drift radii uncertainties provided by Falaise and using default value instead
 	* *default_sigma_r*: universal default uncertainty for drift radii
 	* *chi_square_threshold*: currently not implemented. It is intended as a threshold for acceptable linear segment fits.
