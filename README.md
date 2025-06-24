@@ -20,6 +20,7 @@ chmod 755 install.sh
 ## Module example usage
 
 ```
+cd testing/test2/
 flreconstruct -i test_SD.brio -p reco.conf -o test_TTD.brio
 ```
 
