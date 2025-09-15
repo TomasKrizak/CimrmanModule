@@ -6,7 +6,7 @@ Cimrman is a track reconstruction module for SuperNEMO. It reconstructs charged 
 
 To obtain the final **PTD bank** you then need to apply **Charged Particle Tracking** module that extrapolates the verteces and creates the PTD bank.
 
-You can find detailed description of the algorithm, its structure and the derivation of all methods in my [Master thesis](https://dspace.cvut.cz/handle/10467/123238).
+You can find detailed description of the algorithm, its structure and the derivation of all methods in my [Master thesis](https://dspace.cvut.cz/handle/10467/123238). Specifically, Chapter 5 describes the software structure of the algorithm.
 
 ## Module installation
 
