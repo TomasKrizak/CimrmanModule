@@ -1,5 +1,5 @@
-#ifndef FALAISE_TKRECONSTRUCT_ALGOS_H
-#define FALAISE_TKRECONSTRUCT_ALGOS_H
+#ifndef FALAISE_CIMRMAN_ALGOS_H
+#define FALAISE_CIMRMAN_ALGOS_H
 
 #include <bayeux/datatools/logger.h>
 #include <bayeux/datatools/properties.h>
@@ -22,7 +22,7 @@ namespace tkrec {
   EventRecMode event_recmode_from_label(const std::string & label_);
 
   /// Configuration parameters for event tracking reconstruction
-  struct TKEventRecConfig
+  struct CimrmanAlgoConfig
   {
     datatools::logger::priority verbosity = datatools::logger::PRIO_FATAL;
     EventRecMode mode = EventRecMode::undefined;
@@ -78,7 +78,7 @@ namespace tkrec {
     bool has_event() const;
     
     bool is_initialized() const;
-    void initialize(const TKEventRecConfig & evrecconf_);
+    void initialize(const CimrmanAlgoConfig & evrecconf_);
     void reset();
     void process(Event & event_);
 
@@ -121,7 +121,7 @@ namespace tkrec {
     void connect_close_trajectories(PreclusterSolutionHdl & precluster_solution);
     //void create_polyline_trajectory_points(TrajectoryHdl & trajectory);
     //void split_fake_polyline_candidates(std::vector<std::vector<TrackHdl>> & trajectory_candidates );
-    //void remove_fake_segments(std::vector<std::vector<TrackHdl>> & trajectory_candidates );
+    
 
     // step 6: Trajectory refinement (MLM, clustering refinement...)
     void refine_trajectories();
@@ -141,7 +141,7 @@ namespace tkrec {
 
 
     const Geometry & _geom_; ///< Geometry informations
-    TKEventRecConfig _config_; ///< Configuration
+    CimrmanAlgoConfig _config_; ///< Configuration
     Event * _event_ = nullptr; ///< Working event to be reconstructed
     std::unique_ptr<Visu> _visu_; ///< Visualisation engine
     
@@ -149,4 +149,4 @@ namespace tkrec {
 
 } //  end of namespace tkrec
 
-#endif // FALAISE_TKRECONSTRUCT_ALGOS_H
+#endif // FALAISE_CIMRMAN_ALGOS_H

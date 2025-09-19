@@ -1,5 +1,5 @@
-#ifndef FALAISE_TKRECONSTRUCT_TKRECONSTRUCT_H
-#define FALAISE_TKRECONSTRUCT_TKRECONSTRUCT_H
+#ifndef FALAISE_CIMRMAN_CIMRMAN_H
+#define FALAISE_CIMRMAN_CIMRMAN_H
 
 // Standard headers
 #include <memory>
@@ -28,14 +28,14 @@
 #include "falaise/snemo/processing/module.h"
 #include "falaise/snemo/datamodels/calibrated_data.h"
 #include "falaise/snemo/datamodels/calibrated_tracker_hit.h"
-#include <falaise/snemo/datamodels/data_model.h>
-#include <falaise/snemo/datamodels/event_header.h>
-#include <falaise/snemo/datamodels/tracker_clustering_data.h>
+#include "falaise/snemo/datamodels/data_model.h"
+#include "falaise/snemo/datamodels/event_header.h"
+#include "falaise/snemo/datamodels/tracker_clustering_data.h"
 #include "falaise/snemo/datamodels/tracker_clustering_solution.h"
-#include <falaise/snemo/datamodels/tracker_trajectory_data.h>
-#include <falaise/snemo/datamodels/tracker_trajectory_solution.h>
-#include <falaise/snemo/datamodels/line_trajectory_pattern.h>
-#include <falaise/snemo/datamodels/polyline_trajectory_pattern.h>
+#include "falaise/snemo/datamodels/tracker_trajectory_data.h"
+#include "falaise/snemo/datamodels/tracker_trajectory_solution.h"
+#include "falaise/snemo/datamodels/line_trajectory_pattern.h"
+#include "falaise/snemo/datamodels/polyline_trajectory_pattern.h"
 #include "falaise/snemo/datamodels/particle_track_data.h"
 #include "falaise/snemo/services/geometry.h"
 #include "falaise/snemo/services/service_handle.h"
@@ -47,8 +47,7 @@
 namespace tkrec {
 
   /// Main event reconstruction module
-  class TKReconstruct
-    : public dpp::base_module
+  class Cimrman : public dpp::base_module
   {
   public:
 
@@ -67,16 +66,16 @@ namespace tkrec {
       /// Label of the output TTD bank
       std::string TTD_label = "TTD";
       
-      /// Configuration of the TK event reconstruct algorihtms (from TKalgos.h)
-      TKEventRecConfig recConfig;
+      /// Configuration of the Cimrman reconstruct algorihtms (from Algos.h)
+      CimrmanAlgoConfig recConfig;
       
     };
     
     ////////////////////////////////////////////////
     // The following PUBLIC methods MUST be defined!
-    TKReconstruct();
+    Cimrman();
 
-    virtual ~TKReconstruct();
+    virtual ~Cimrman();
 
     //! Return a const reference to the module's configuration
     const config_type & config() const;
@@ -125,10 +124,10 @@ namespace tkrec {
     friend struct pimpl_type;
     std::unique_ptr<pimpl_type> _work_; ///< Embedded resources (data and algo)
     
-    DPP_MODULE_REGISTRATION_INTERFACE(TKReconstruct)
+    DPP_MODULE_REGISTRATION_INTERFACE(Cimrman)
     
   };
   
 } //  end of namespace tkrec
 
-#endif // FALAISE_TKRECONSTRUCT_TKRECONSTRUCT_H
+#endif // FALAISE_CIMRMAN_CIMRMAN_H

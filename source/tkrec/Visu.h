@@ -1,5 +1,5 @@
-#ifndef FALAISE_TKRECONSTRUCT_VISU_H
-#define FALAISE_TKRECONSTRUCT_VISU_H
+#ifndef FALAISE_CIMRMAN_VISU_H
+#define FALAISE_CIMRMAN_VISU_H
 
 // Standard headers
 #include <functional>
@@ -91,4 +91,4 @@ namespace tkrec {
 
 } //  end of namespace tkrec
 
-#endif // FALAISE_TKRECONSTRUCT_VISU_H
+#endif // FALAISE_CIMRMAN_VISU_H

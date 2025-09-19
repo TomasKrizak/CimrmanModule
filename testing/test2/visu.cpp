@@ -1,6 +1,5 @@
 void visu()
 {
-	cout << endl << "warning: used dimensions and positions of demonstrator parts may not be fully correct" << endl << endl;
 
 	int run_number;
 	int event_number;
@@ -50,7 +49,7 @@ void visu()
 			{
 				file->GetObject(Form("track-%d", i), track);
 				track->Draw("same");
-				i++;
+				++i;
 			}
 			
 			i = 0;
@@ -59,8 +58,21 @@ void visu()
 			{
 				file->GetObject(Form("trajectory-%d", i), trajectory);
 				trajectory->Draw("same");
-				i++;
+				++i;
 			}
+			
+			i = 0;
+			TPolyMarker3D* trajectory_points;
+			while(file->GetListOfKeys()->Contains(Form("trajectory_points-%d", i)))
+			{
+				file->GetObject(Form("trajectory_points-%d", i), trajectory_points);
+				trajectory_points->Draw("same");
+				++i;
+			}
+			
+			TPolyMarker3D* association_points;
+			file->GetObject( "association_points", association_points );
+			association_points->Draw("same");
 			
 			TLatex* title = new TLatex(-0.9, 0.9, Form("Run %d | Event %d | Solution %d", run_number, event_number, solution));
 			title->SetTextSize(0.03);

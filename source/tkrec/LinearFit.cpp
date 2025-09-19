@@ -54,8 +54,6 @@ namespace tkrec {
 	 << ", theta = " << theta 
 	 << ", h = " << h << std::endl; 
     out_ << "	chi squared: " << chi_squared << std::endl;
-    /*out_ << "	chi squared R: " << chi_squared_R << std::endl;
-    out_ << "	chi squared Z: " << chi_squared_Z << std::endl;*/
   }
 
 } //  end of namespace tkrec

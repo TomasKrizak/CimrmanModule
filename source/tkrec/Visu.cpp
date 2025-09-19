@@ -21,6 +21,7 @@
 #include <TStyle.h>
 #include <TF1.h>
 #include <TGraph.h>
+#include "TPolyMarker3D.h"
 
 namespace tkrec {
 
@@ -650,6 +651,8 @@ namespace tkrec {
     }
 
     // Adding tracker hits
+    TPolyMarker3D* association_points = new TPolyMarker3D();
+    int association_point_counter = 0;
     for(const auto & trhit : _event_->tracker_hits)
     {
       double radius = _geom_.tc_radius; // default value
@@ -694,8 +697,33 @@ namespace tkrec {
       }
       else
       {
-        tracker_cell->SetLineColor(kRed);
-        tracker_cell->SetLineWidth(1);
+        bool found = false;
+        const auto& trajectories = solution->get_trajectories();
+        for (const auto& trajectory : trajectories)
+        {
+          if(found) break;
+          const auto& associations = trajectory->get_associations();
+          for(const auto& association : associations)
+          {
+            if( association.tracker_hit == trhit )
+            {
+              found = true;
+              const auto& association_point = association.point;
+              association_points->SetPoint(association_point_counter++, association_point->x, association_point->y, association_point->z);
+              break;
+            }
+          }
+        }
+        if(found)
+        {
+          tracker_cell->SetLineColor(kGreen);
+          tracker_cell->SetLineWidth(1);
+        }
+        else
+        {
+          tracker_cell->SetLineColor(kRed);
+          tracker_cell->SetLineWidth(1);
+        }
       }
               
       top->AddNode(tracker_cell, object_counter, trans);
@@ -706,12 +734,16 @@ namespace tkrec {
     geom->CloseGeometry(); 
     file->WriteObject(top, "demonstrator");
 
+    association_points->SetMarkerStyle(20);    // marker style
+    association_points->SetMarkerSize(1);    // size
+    association_points->SetMarkerColor(kRed);
+    file->WriteObject(association_points, "association_points");
     
     /*
     if(tracking_option_ & show_tracking_tracks)
     {
       std::vector<ConstTKtrackHdl> all_tracks = _event_->get_all_tracks(); 
-      for(auto i = 0u; i < all_tracks.size(); i++)
+      for(auto i = 0u; i < all_tracks.size(); ++i)
       {
         const auto & trackPtr = all_tracks[i];
         TPolyLine3D *track = new TPolyLine3D();
@@ -761,19 +793,29 @@ namespace tkrec {
     if(tracking_option_)
     {
       std::vector<ConstTrajectoryHdl> trajectories = solution->get_trajectories();
-      for (auto i = 0u; i < trajectories.size(); i++)
+      for (auto i = 0u; i < trajectories.size(); ++i)
       {
+        TPolyMarker3D* points = new TPolyMarker3D();
+
         std::vector<ConstPointHdl> trajectory_points = trajectories[i]->get_trajectory_points();
-        TPolyLine3D* trajectory = new TPolyLine3D();
+        TPolyLine3D* trajectory = new TPolyLine3D();        
         trajectory->SetLineColor(kOrange - 3);
         trajectory->SetLineWidth(4);
-        for (auto j = 0u; j < trajectory_points.size(); j++)
+        for (auto j = 0u; j < trajectory_points.size(); ++j)
         {
           ConstPointHdl & point = trajectory_points[j];
           trajectory->SetPoint(j, point->x, point->y, point->z);
+          
+          points->SetPoint(j, point->x, point->y, point->z); 
         }
-        file->WriteObject(trajectory, Form("trajectory-%d", i));
+        points->SetMarkerStyle(20);    // marker style
+        points->SetMarkerSize(1);    // size
+        points->SetMarkerColor(kOrange);
+        
+        file->WriteObject( points, Form("trajectory_points-%d", i) );
+        file->WriteObject( trajectory, Form("trajectory-%d", i) );
         delete trajectory;
+        delete points;
       }     
     }
 

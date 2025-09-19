@@ -1,5 +1,5 @@
-#ifndef FALAISE_TKRECONSTRUCT_EVENT_H
-#define FALAISE_TKRECONSTRUCT_EVENT_H
+#ifndef FALAISE_CIMRMAN_EVENT_H
+#define FALAISE_CIMRMAN_EVENT_H
 
 // Standard headers
 #include <vector>
@@ -65,21 +65,8 @@ namespace tkrec {
 
     friend class Visu; ///< Private access from visualization engine
 
-
-/*
-    // tracker hit collection filtering
-    static std::vector<TKTrackerHitHdl> filter_side(const std::vector<TKTrackerHitHdl>& _hits, int side);
-    static std::vector<TKTrackerHitHdl> filter_usable(const std::vector<TKTrackerHitHdl>& _hits);
-    static std::vector<TKTrackerHitHdl> filter_unassociated(const std::vector<TKTrackerHitHdl>& _hits);
-    static std::vector<TKTrackerHitHdl> filter_unclustered(const std::vector<TKTrackerHitHdl>& _hits, const TKEvent & event_);
-    static std::vector<TKTrackerHitHdl> filter_distant(const std::vector<TKTrackerHitHdl>& _hits);
-    static std::vector<TKTrackerHitHdl> filter_close_hits(const std::vector<TKTrackerHitHdl>& _hits,
-						     double phi,
-						     double r,
-						     double distance_limit);
-    */ 
   };
 
 } //  end of namespace tkrec
 
-#endif // FALAISE_TKRECONSTRUCT_EVENT_H
+#endif // FALAISE_CIMRMAN_EVENT_H

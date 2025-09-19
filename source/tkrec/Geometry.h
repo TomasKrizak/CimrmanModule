@@ -1,5 +1,5 @@
-#ifndef FALAISE_TKRECONSTRUCT_GEOMETRY_H
-#define FALAISE_TKRECONSTRUCT_GEOMETRY_H
+#ifndef FALAISE_CIMRMAN_GEOMETRY_H
+#define FALAISE_CIMRMAN_GEOMETRY_H
 
 #include <falaise/snemo/geometry/calo_locator.h>
 #include <falaise/snemo/geometry/gveto_locator.h>
@@ -46,4 +46,4 @@ namespace tkrec {
 
 } //  end of namespace tkrec
 
-#endif // FALAISE_TKRECONSTRUCT_GEOMETRY_H
+#endif // FALAISE_CIMRMAN_GEOMETRY_H

@@ -1,5 +1,5 @@
-#ifndef FALAISE_TKRECONSTRUCT_TRAJECTORY_H
-#define FALAISE_TKRECONSTRUCT_TRAJECTORY_H
+#ifndef FALAISE_CIMRMAN_TRAJECTORY_H
+#define FALAISE_CIMRMAN_TRAJECTORY_H
 
 // Standard headers
 #include <iostream>
@@ -81,4 +81,4 @@ namespace tkrec {
 
 } //  end of namespace tkrec
 
-#endif // FALAISE_TKRECONSTRUCT_TRAJECTORY_H
+#endif // FALAISE_CIMRMAN_TRAJECTORY_H

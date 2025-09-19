@@ -1,26 +1,26 @@
 // Interface from Falaise
-#include "tkrec/TKReconstruct.h"
+#include "tkrec/Cimrman.h"
 
 namespace tkrec {
 
-  DPP_MODULE_REGISTRATION_IMPLEMENT(TKReconstruct, "TKReconstruct")
+  DPP_MODULE_REGISTRATION_IMPLEMENT(Cimrman, "Cimrman")
 
   // The working class which embeds private resources to
   // do the track reconstruction
-  struct TKReconstruct::pimpl_type
+  struct Cimrman::pimpl_type
   {
-    TKReconstruct & tkrec; ///< Reference to the father recontruction module
+    Cimrman & tkrec; ///< Reference to the father recontruction module
     Geometry geom; ///< Geometry informations (ideally, should be extracted from the Falaise's geometry manager)
     Event event; ///< Working event to be reconstructed (working event data model)
     std::unique_ptr<Algos> palgo; ///< Reconstruction algorithms
     size_t eventCounter = 0;
 
     // Constructor
-    pimpl_type(TKReconstruct & tkrec_);
+    pimpl_type(Cimrman & tkrec_);
     
   };
 
-  TKReconstruct::pimpl_type::pimpl_type(TKReconstruct & tkrec_)
+  Cimrman::pimpl_type::pimpl_type(Cimrman & tkrec_)
     : tkrec(tkrec_)
   {
     // Initialize the geometry informations from the father reconstruction module
@@ -35,19 +35,19 @@ namespace tkrec {
     return;
   }
 
-  const TKReconstruct::config_type & TKReconstruct::config() const
+  const Cimrman::config_type & Cimrman::config() const
   {
     return _config_;
   }
   
-  void TKReconstruct::_set_defaults_()
+  void Cimrman::_set_defaults_()
   {
     // Initialize the reference to the Falaise's geometry manager service
     _geoManager_ = snemo::service_handle<snemo::geometry_svc>{};
     return;
   }
 
-  void TKReconstruct::_init_geom_(Geometry & geom_)
+  void Cimrman::_init_geom_(Geometry & geom_)
   {
     DT_LOG_DEBUG(_config_.verbosity, "Initializing geometry info...");
     const geomtools::mapping & geoMapping = _geoManager_->get_mapping();
@@ -73,19 +73,19 @@ namespace tkrec {
 							    geomtools::geom_id::ANY_ADDRESS); // position
       geoMapping.compute_matching_geom_id(sourceCalibrarionCarrierGidPattern, sourceCalibrationCarrierGids);
       if (sourceCalibrationCarrierGids.size()) {
-	const geomtools::geom_info & srcCalibCarrierGinfo = geoMapping.get_geom_info(sourceCalibrationCarrierGids.front());
-	const geomtools::logical_volume & srcCalibCarrierLog = srcCalibCarrierGinfo.get_logical();
-	const geomtools::i_shape_3d & srcCalibCarrierShape = srcCalibCarrierLog.get_shape();    
-	const geomtools::box & srcCalibCarrierBox = dynamic_cast<const geomtools::box &>(srcCalibCarrierShape);
-	double x = srcCalibCarrierBox.get_z();
-	double y = srcCalibCarrierBox.get_y();
-	double z = srcCalibCarrierBox.get_x();
-	DT_LOG_DEBUG(_config_.verbosity, "x = " << x);
-	DT_LOG_DEBUG(_config_.verbosity, "y = " << y);
-	DT_LOG_DEBUG(_config_.verbosity, "z = " << z);
-	geom_.Bi_source_x = x;
-	geom_.Bi_source_y = y;
-	geom_.Bi_source_z = z;
+	      const geomtools::geom_info & srcCalibCarrierGinfo = geoMapping.get_geom_info(sourceCalibrationCarrierGids.front());
+	      const geomtools::logical_volume & srcCalibCarrierLog = srcCalibCarrierGinfo.get_logical();
+	      const geomtools::i_shape_3d & srcCalibCarrierShape = srcCalibCarrierLog.get_shape();    
+	      const geomtools::box & srcCalibCarrierBox = dynamic_cast<const geomtools::box &>(srcCalibCarrierShape);
+	      double x = srcCalibCarrierBox.get_z();
+	      double y = srcCalibCarrierBox.get_y();
+	      double z = srcCalibCarrierBox.get_x();
+	      DT_LOG_DEBUG(_config_.verbosity, "x = " << x);
+	      DT_LOG_DEBUG(_config_.verbosity, "y = " << y);
+	      DT_LOG_DEBUG(_config_.verbosity, "z = " << z);
+	      geom_.Bi_source_x = x;
+	      geom_.Bi_source_y = y;
+	      geom_.Bi_source_z = z;
       }
     }
     
@@ -120,14 +120,14 @@ namespace tkrec {
     return;
   }
 
-  TKReconstruct::TKReconstruct()
+  Cimrman::Cimrman()
     : dpp::base_module() 
   {
     _set_defaults_();
     return;
   }
 
-  TKReconstruct::~TKReconstruct()
+  Cimrman::~Cimrman()
   { 
     if (this->is_initialized())
       {
@@ -136,7 +136,7 @@ namespace tkrec {
     return;
   }
 
-  void TKReconstruct::read_config(const datatools::properties& config_)
+  void Cimrman::read_config(const datatools::properties& config_)
   {
     if (config_.has_key("verbosity")) {
       std::string verbosityLabel = config_.fetch_string("verbosity");
@@ -166,7 +166,7 @@ namespace tkrec {
     return;
   }
 
-  void TKReconstruct::initialize(const datatools::properties & config_,
+  void Cimrman::initialize(const datatools::properties & config_,
 				 datatools::service_manager & services_,
 				 dpp::module_handle_dict_type &  /*moduleDict*/
 				 ) 
@@ -182,7 +182,7 @@ namespace tkrec {
     return;
   }
 
-  void TKReconstruct::reset() 
+  void Cimrman::reset() 
   {   
     DT_THROW_IF(!is_initialized(), std::logic_error,
 		"Module '" << get_name() << "' is not initialized !");
@@ -194,7 +194,7 @@ namespace tkrec {
   }
 
 
-  dpp::base_module::process_status TKReconstruct::process(datatools::things & workItem) 
+  dpp::base_module::process_status Cimrman::process(datatools::things & workItem) 
   {
     _work_->eventCounter++;
     DT_LOG_DEBUG(_config_.verbosity, "============ New event #" << _work_->eventCounter);
@@ -225,7 +225,7 @@ namespace tkrec {
     return falaise::processing::status::PROCESS_OK;
   }
 
-  void TKReconstruct::_populate_working_event_(const datatools::things &workItem)
+  void Cimrman::_populate_working_event_(const datatools::things &workItem)
   {
     // Reset the working event
     _work_->event.reset();
@@ -265,12 +265,12 @@ namespace tkrec {
 	          break;
         }
         auto OMhitPtr = std::make_shared<OMHit>(SWCR);		
-        //OMhitPtr->set_xxx( calohit->get_xxx() / xxxunit); 
 		    
         _work_->event.add_OM_hit( OMhitPtr );
       }
 
 	    DT_LOG_DEBUG(_config_.verbosity, "Nb tracker hits = " << falaiseCDbank.tracker_hits().size());
+	    
 	    for (const auto & trhit : falaiseCDbank.tracker_hits() )
       {
         int SRL[3] = {trhit->get_side(), trhit->get_row(), trhit->get_layer()};
@@ -332,14 +332,14 @@ namespace tkrec {
     return;
   }
 
-  void TKReconstruct::_fill_TCD_bank_(const snemo::datamodel::calibrated_data & falaiseCDbank,
+  void Cimrman::_fill_TCD_bank_(const snemo::datamodel::calibrated_data & falaiseCDbank,
 				        snemo::datamodel::tracker_clustering_data & the_tracker_clustering_data) const
   {
     namespace snedm = snemo::datamodel;
     // creating one clustering solution for each TK solution based on associated hits of individual trajectories
     // (1 falaise cluster = all associated tracker hits of 1 TK trajectory)
     std::vector<SolutionHdl> & solutions = _work_->event.get_solutions(); 
-    for(auto i = 0u; i < solutions.size(); i++)
+    for(auto i = 0u; i < solutions.size(); ++i)
     {
       SolutionHdl & solution = solutions[i]; 
       // creating empty clustering solution and adding to TCD bank
@@ -368,7 +368,7 @@ namespace tkrec {
           snedm::TrackerClusterHdl cluster_handle = datatools::make_handle<snedm::tracker_cluster>();
           htcs->get_clusters().push_back(cluster_handle);
           cluster_handle->set_cluster_id(htcs->get_clusters().size() - 1);
-         
+
           std::vector<TrackHdl> & traj_segments = trajectory->get_segments();
           for(auto & segment : traj_segments)
           {
@@ -393,7 +393,7 @@ namespace tkrec {
       }
     }
     
-    if(solutions.size() > 0)
+    if(not solutions.empty())
     {
     	the_tracker_clustering_data.set_default(0);
     }
@@ -401,12 +401,12 @@ namespace tkrec {
     return;
   }
 
-  void TKReconstruct::_fill_TTD_bank_(snemo::datamodel::tracker_clustering_data& the_tracker_clustering_data,
+  void Cimrman::_fill_TTD_bank_(snemo::datamodel::tracker_clustering_data& the_tracker_clustering_data,
 				      snemo::datamodel::tracker_trajectory_data& the_tracker_trajectory_data) const
   {	
     namespace snedm = snemo::datamodel;
     std::vector<SolutionHdl> & solutions = _work_->event.get_solutions(); 
-    for(auto i = 0u; i < solutions.size(); i++)
+    for(auto i = 0u; i < solutions.size(); ++i)
     {
       // clustering and tracking solutions are created with the same ordering as TK solutions
       
@@ -426,17 +426,16 @@ namespace tkrec {
       {
         // creating one falaise trajectory for each TK trajectory
         std::vector<ConstTrajectoryHdl> trajectories = precluster_solution->get_trajectories();
-        for(auto j = 0u; j < trajectories.size(); j++)
+        for(auto & trajectory : trajectories)
         {
-          // getting the TK trajectory
-          ConstTrajectoryHdl & trajectory = trajectories[j]; 
-
           // creating new falaise tracker_trajectory and connecting to falaise cluster
           auto h_trajectory = datatools::make_handle<snedm::tracker_trajectory>();
           trajectory_solution->grab_trajectories().push_back(h_trajectory);
-          h_trajectory->set_id(j);
-          h_trajectory->set_cluster_handle(cluster_solution->get_clusters()[j]);
-         
+          
+          int traj_ID = trajectory_solution->get_trajectories().size() - 1;
+          h_trajectory->set_id(traj_ID);
+          h_trajectory->set_cluster_handle(cluster_solution->get_clusters()[traj_ID]);
+
           //TODO: there must be a better way (like a link to Precluster from PreclusterSolution )
           int side = trajectory->get_segments().front()->get_associations().front().tracker_hit->get_SRL()[0]; 
           
@@ -445,7 +444,8 @@ namespace tkrec {
           snedm::track_fit_infos & fit_infos = h_trajectory->get_fit_infos(); 
           fit_infos.set_chi2( trajectory->get_chi_squared() );
           int ndof = 1 + 3 * trajectory->get_segments().size();
-          fit_infos.set_ndof( ndof );          
+          fit_infos.set_ndof( ndof ); 
+                   
           //TODO there is no polyline option
           fit_infos.set_algo(snedm::track_fit_algo_type::TRACK_FIT_ALGO_LINE); 
           fit_infos.set_best(true);
@@ -492,7 +492,7 @@ namespace tkrec {
       }
     }
     
-    if(solutions.size() > 0)
+    if(not solutions.empty())
     {
     	the_tracker_trajectory_data.set_default_solution(0);
     }

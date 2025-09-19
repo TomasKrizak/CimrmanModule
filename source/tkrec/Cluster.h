@@ -1,5 +1,5 @@
-#ifndef FALAISE_TKRECONSTRUCT_CLUSTER_H
-#define FALAISE_TKRECONSTRUCT_CLUSTER_H
+#ifndef FALAISE_CIMRMAN_CLUSTER_H
+#define FALAISE_CIMRMAN_CLUSTER_H
 
 // Standard headers
 #include <iostream>
@@ -69,4 +69,4 @@ namespace tkrec {
 
 } //  end of namespace tkrec
 
-#endif // FALAISE_TKRECONSTRUCT_CLUSTER_H
+#endif // FALAISE_CIMRMAN_CLUSTER_H
