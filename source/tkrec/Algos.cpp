@@ -285,7 +285,7 @@ namespace tkrec {
 
   void Algos::_process_electron_kinked_()
   {
-    Legendre_transform_cluster_finder();
+    Legendre_transform_clustering();
     make_MLM_fits();
     combine_into_precluster_solutions();
     create_polyline_trajectories();
@@ -295,7 +295,7 @@ namespace tkrec {
   
   void Algos::_process_electron_straight_()
   {
-    Legendre_transform_cluster_finder();
+    Legendre_transform_clustering();
     make_MLM_fits();
     combine_into_precluster_solutions();
     create_line_trajectories();
@@ -309,7 +309,13 @@ namespace tkrec {
     return;
   }
   
-  // step 1: preclustering
+  
+//____________________________________________________________________________
+//////////////////////////////////////////////////////////////////////////////
+//// step 1: preclustering ///////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+  
+  // master function of step 1
   void Algos::precluster()
   {
     // basic preclustering into delayed/prompt hits and into halves of tracker
@@ -376,13 +382,95 @@ namespace tkrec {
     return;
   }
   
+   void depth_first_search(int node, 
+											   const std::vector<std::vector<int>> & adjacency, 
+											   std::vector<bool> & visited, 
+											   std::vector<int> & cluster_indices)
+  {
+    std::stack<int> stack;
+    stack.push(node);
+    visited[node] = true;
+
+    while (!stack.empty())
+    {
+      int current = stack.top();
+      stack.pop();
+      cluster_indices.push_back(current);
+
+      for(int neighbor : adjacency[current])
+      {
+        if(!visited[neighbor])
+        {
+          visited[neighbor] = true;
+          stack.push(neighbor);
+        }
+      }
+    }
+  }
+
+  // spatial clustering - separates a vector of tracker hits into spatialy distant subgroups (vectors)
+  std::vector<std::vector<ConstTrackerHitHdl>> Algos::separate_hits(const std::vector<ConstTrackerHitHdl> & hits)
+  {
+
+    const double distance_treshold = _config_.clustering_max_distance;
+    const size_t n = hits.size();
+
+    // building adjacency graph
+    // adjacency[i] = list of indices connected to hit i
+    std::vector<std::vector<int>> adjacency(n); 
+    
+    for(size_t i = 0; i < n; ++i)
+    {
+      for(size_t j = i+1; j < n; ++j)
+      {
+        double dx = hits[i]->get_x() - hits[j]->get_x();
+        double dy = hits[i]->get_y() - hits[j]->get_y();
+        double distance = std::hypot(dx, dy);
+
+        if (distance < distance_treshold)
+        {
+          adjacency[i].push_back(j);
+          adjacency[j].push_back(i);
+        }
+    	}
+    }
+
+    // building clusters
+    std::vector<bool> visited(n, false);
+    std::vector<std::vector<ConstTrackerHitHdl>> clusters;
+
+    for(size_t i = 0; i < n; ++i)
+    {
+      if(visited[i]) continue;
+
+      std::vector<int> cluster_indices;
+      depth_first_search(i, adjacency, visited, cluster_indices);
+
+      std::vector<ConstTrackerHitHdl> cluster;
+      for(int index : cluster_indices)
+      {
+        cluster.push_back(hits[index]);
+      }
+
+      clusters.push_back(std::move(cluster));
+    }
+
+    return clusters;
+  }
   
-  // step 2: clustering
-  void Algos::Legendre_transform_cluster_finder()
+  
+
+//____________________________________________________________________________
+//////////////////////////////////////////////////////////////////////////////
+//// step 2: clustering //////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+
+  // master function of step 2
+  void Algos::Legendre_transform_clustering()
   {
     for(auto & precluster : _event_->get_preclusters())
     {
-      // clusterizes separatelly every prompt cluster
+      // clusterizes separatelly every prompt precluster
       if( precluster->is_prompt() )
       {        
         std::vector<ConstTrackerHitHdl> & unclustered_hits = precluster->get_unclustered_tracker_hits(); 
@@ -390,80 +478,13 @@ namespace tkrec {
 
         // recursively applies Legendre transform and spatial clustering to find linear clusters
         // creates clusters and removes its tracker hits from "unclustered_hits"
-        clusterize(unclustered_hits, clusters);
+        clusterize_precluster(unclustered_hits, clusters);
       }
     }
     return;
   }
   
-  /*
-  // step 2: clustering
-  void Algos::Legendre_transform_cluster_finder()
-  {
-    const double association_distance = _config_.clustering_hit_association_distance;
-    for(auto & precluster : _event_->get_preclusters())
-    {
-      // clusterizes separatelly every prompt cluster
-      if( precluster->is_prompt() )
-      {
-        std::vector<ConstTrackerHitHdl> & hits = precluster->get_unclustered_tracker_hits(); 
-        while( hits.size() > 2u )
-        {
-          // Legendre transform on hits to find phi and r candidates
-          double phi_estimate, r_estimate;
-          find_cluster_Legendre( hits, phi_estimate, r_estimate );
-          
-          // identifying which tracker hits belong to phi, r line candidate
-          std::vector<ConstTrackerHitHdl> cluster_hits;
-          separate_close_hits_to_line(hits, cluster_hits, phi_estimate, r_estimate, association_distance);
-          
-          // additional spatial separation to filter coincidental associations to the cluster          
-          std::vector<std::vector<ConstTrackerHitHdl>> sub_clusters = separate_hits(cluster_hits);
-          
-          // finding the biggest group
-          int largest = 0;
-          auto size = 0u;
-          for(auto i = 0u; i < sub_clusters.size(); i++)
-          {
-            if(sub_clusters[i].size() > size)
-            {
-              size = sub_clusters[i].size();
-              largest = i; 
-            }
-          }
-
-          // creating a cluster from the biggest groups if it has at least 3 hits
-          // putting the rest back into unclustered hits  
-          bool cluster_found = false;         
-          for(auto j = 0u; j < sub_clusters.size(); j++)
-          {
-            if(j == largest && sub_clusters[j].size() > 2u)
-            {
-              // create and add new cluster to the precluster
-              ClusterHdl cluster = std::make_shared<Cluster>( sub_clusters[j], phi_estimate, r_estimate, false );
-              precluster->get_clusters().push_back( cluster );
-              cluster_found = true;
-            }
-            else
-            {
-              // putting the separated hits back into unclustered hits
-              hits.insert(hits.end(), sub_clusters[j].begin(), sub_clusters[j].end());
-            }
-          }
-          
-          // no meaningful candidate found (repeating the proccess would not give a different result)
-          if( not cluster_found ) 
-          {
-            break;
-          }
-        }
-      }
-    }
-    return;
-  }*/
-  
-  
-  void Algos::clusterize(std::vector<ConstTrackerHitHdl> & tracker_hits, std::vector<ClusterHdl> & clusters)
+  void Algos::clusterize_precluster(std::vector<ConstTrackerHitHdl> & tracker_hits, std::vector<ClusterHdl> & clusters)
   {
     if( tracker_hits.size() < 3u ) return;
     
@@ -483,7 +504,7 @@ namespace tkrec {
     // finding the biggest group
     int largest = 0;
     auto size = 0u;
-    for(auto i = 0u; i < sub_clusters.size(); i++)
+    for(auto i = 0u; i < sub_clusters.size(); ++i)
     {
       if(sub_clusters[i].size() > size)
       {
@@ -495,7 +516,7 @@ namespace tkrec {
     // creating a cluster from the biggest groups if it has at least 3 hits
     // putting the rest back into unclustered hits  
     bool cluster_found = false; 
-    for(auto j = 0u; j < sub_clusters.size(); j++)
+    for(auto j = 0u; j < sub_clusters.size(); ++j)
     {
       if(j == largest && sub_clusters[j].size() > 2u)
       {
@@ -518,7 +539,7 @@ namespace tkrec {
       tracker_hits.clear();
       for(auto & sub_group : sub_groups)
       {
-        clusterize(sub_group, clusters);
+        clusterize_precluster(sub_group, clusters);
         tracker_hits.insert(tracker_hits.end(), sub_group.begin(), sub_group.end());
       }
     }
@@ -545,7 +566,7 @@ namespace tkrec {
       }
       else
       {
-        it++;
+        ++it;
       }
     }
     return;
@@ -593,7 +614,7 @@ namespace tkrec {
     double peak_phi = M_PI / 2.0;
     double peak_R = 0.0;
 
-    for(int iter = 0; iter < iterations; iter++)
+    for(int iter = 0; iter < iterations; ++iter)
     {
       double r_min = peak_R - (delta_R / 2.0);
       double r_max = peak_R + (delta_R / 2.0);
@@ -692,7 +713,7 @@ namespace tkrec {
     }
     
     // result should be between -pi and pi
-    if( peak_phi > M_PI/2.0 )
+    if( peak_phi > M_PI / 2.0 )
     {
       peak_phi -= M_PI;
       peak_R *= -1.0;
@@ -700,10 +721,15 @@ namespace tkrec {
     
     phi_estimate = peak_phi;
     r_estimate  = peak_R + center_X * std::sin(peak_phi) - center_Y * std::cos(peak_phi);
-    return;
   }
   
-  // step 3: MLM line fitting + ambiguity checking and solving
+  
+//____________________________________________________________________________
+//////////////////////////////////////////////////////////////////////////////
+//// step 3: MLM line fitting + ambiguity checking and solving ///////////////
+//////////////////////////////////////////////////////////////////////////////
+
+  // master function of step 3
   void Algos::make_MLM_fits()
   {
     for(auto & precluster : _event_->get_preclusters())
@@ -739,19 +765,23 @@ namespace tkrec {
     // Likelihood is 4D function but 3 variables are solved analytically as a function of phi. 
     Likelihood & lik = fit->likelihood;
     double phi_0 = fit->phi;
-    double h = 0.000001;
-    for(int i = 0; i < 3; i++)
+    const double h = 0.000001;
+    for(int i = 0; i < 3; ++i)
     {
       double derivative = lik.log_likelihood_derivative(phi_0);
       phi_0 += -h * derivative / (lik.log_likelihood_derivative(phi_0 + h) - derivative);
     }
-    double r_0 = (lik.Rr + lik.Rx * std::sin(phi_0) - lik.Ry * std::cos(phi_0)) / lik.R;
+    const double sin_phi0 = std::sin(phi_0);
+    const double cos_phi0 = std::cos(phi_0);
+    const double tan_phi0 = std::tan(phi_0);
+
+    double r_0 = (lik.Rr + lik.Rx * sin_phi0 - lik.Ry * cos_phi0) / lik.R;
     
     fit->phi = phi_0;
     fit->r = r_0;
     
-    fit->a = std::tan(phi_0);
-    fit->b = -r_0 / std::cos(phi_0);
+    fit->a = tan_phi0;
+    fit->b = -r_0 / cos_phi0;
     
     // calculating chi squared
     double min_likelihood = -lik.log_likelihood_value(phi_0);
@@ -759,32 +789,36 @@ namespace tkrec {
     double chi_squared = min_likelihood / no_of_measurements;
     fit->chi_squared = chi_squared;
    
-    // if at least 2 tracker hits have usable Z position ML fit is calculated
+    // if at least 2 tracker hits have usable Z position, 3D ML fit is calculated
     if( lik.no_Z > 1 )
     {
-      double denominator = lik.Cov_Zyy * std::pow(std::sin(phi_0), 2.0) 
-                          + 2.0*(lik.Cov_Zxy) * std::sin(phi_0)*std::cos(phi_0) 
-                          + lik.Cov_Zxx * std::pow(std::cos(phi_0), 2.0);
+    
+      double denominator = (lik.Cov_Zyy * sin_phi0 * sin_phi0) 
+                          + (2.0 * lik.Cov_Zxy * sin_phi0 * cos_phi0) 
+                          + (lik.Cov_Zxx * cos_phi0 * cos_phi0);
       
-      if( denominator != 0.0)
+      if( denominator != 0.0 )
       {
-        double tan_theta = (lik.Cov_Zzy * std::sin(phi_0) + lik.Cov_Zzx * std::cos(phi_0)) / denominator;
-        double h_temp = (lik.Zz / lik.Z) - (lik.Zx * std::cos(phi_0) + lik.Zy * std::sin(phi_0)) * tan_theta / lik.Z;
+        double tan_theta = (lik.Cov_Zzy * sin_phi0 + lik.Cov_Zzx * cos_phi0) / denominator;
+        double h_temp = (lik.Zz / lik.Z) - (lik.Zx * cos_phi0 + lik.Zy * sin_phi0) * tan_theta / lik.Z;
         
         fit->h = h_temp;
         fit->theta = std::atan(tan_theta);
 
-        fit->c = tan_theta / std::cos(phi_0);
-        fit->d = h_temp - r_0 * std::tan(phi_0) * tan_theta;
+        fit->c = tan_theta / cos_phi0;
+        fit->d = h_temp - (r_0 * tan_phi0 * tan_theta);
       }
     }
     // in case of only 1 tracker hit Z position the fit goes horizontally at the height of the one tracker hit
     else if( lik.no_Z == 1 ) 
     {
       fit->h = lik.Zz / lik.Z;
+      fit->theta = 0.0;
       
+      fit->c = 0.0;
       fit->d = lik.Zz / lik.Z;
     } 
+    // TODO what if there is no available Z measurement?
     
     return;
   }
@@ -794,13 +828,13 @@ namespace tkrec {
     std::vector<ConstTrackerHitHdl> hits = cluster->get_tracker_hits();
     
     // detecting ambiguity type
-    double x0 = hits.front()->get_x();
-    double y0 = hits.front()->get_y();
+    const double x0 = hits.front()->get_x();
+    const double y0 = hits.front()->get_y();
     bool ambiguous;
     
     // type 1 == mirror image along line x = x0 
     ambiguous = true;
-    for(auto i = 1u; i < hits.size(); i++)
+    for(auto i = 1u; i < hits.size(); ++i)
     {	
       if( x0 != hits[i]->get_x() )
       {
@@ -816,7 +850,7 @@ namespace tkrec {
     
     // type 2 == mirror image along line y = y0 
     ambiguous = true;
-    for(auto i = 1u; i < hits.size(); i++)
+    for(auto i = 1u; i < hits.size(); ++i)
     {	
       if( y0 != hits[i]->get_y() )
       {
@@ -832,7 +866,7 @@ namespace tkrec {
     
     // type 3 == mirror image along line y = x + (y0-x0) 
     ambiguous = true;
-    for(auto i = 1u; i < hits.size(); i++)
+    for(auto i = 1u; i < hits.size(); ++i)
     {	
       if( y0 - hits[i]->get_y() != x0 - hits[i]->get_x() )
       {
@@ -848,7 +882,7 @@ namespace tkrec {
     
     // type 4 == mirror image along line y = -x + (y0-x0) 
     ambiguous = true;
-    for(auto i = 1u; i < hits.size(); i++)
+    for(auto i = 1u; i < hits.size(); ++i)
     {	
       if( y0 - hits[i]->get_y() != hits[i]->get_x() - x0 )
       {
@@ -935,7 +969,13 @@ namespace tkrec {
     return;
   }
   
-  // step 4: Linear fits are associated to tracker hits and combined into a precluster solutions
+//____________________________________________________________________________
+//////////////////////////////////////////////////////////////////////////////
+//// step 4: Linear fits are associated to tracker hits //////////////////////
+////         and combined into a precluster solutions   //////////////////////
+//////////////////////////////////////////////////////////////////////////////
+  
+  // master function of step 4
   void Algos::combine_into_precluster_solutions()
   {
     // proccess is done separately for each precluster
@@ -986,22 +1026,22 @@ namespace tkrec {
         else if(cluster->get_linear_fits().size() == 2u)
         {
           int k = 0;
-          for(int i = 0; i < N1; i++)
+          for(int i = 0; i < N1; ++i)
           {
             int N2 = no_precluster_solutions / (N1 * 2);
-            for(int j = 0; j < N2; j++)
+            for(int j = 0; j < N2; ++j)
             {  
               TrackHdl track = std::make_shared<Track>(cluster->get_linear_fits()[0], cluster->get_tracker_hits());
               track->sort_associations();
               precluster_solutions[k]->add_track(track);
-              k++;
+              ++k;
             }
-            for(int j = 0; j < N2; j++)
+            for(int j = 0; j < N2; ++j)
             {  
               TrackHdl track = std::make_shared<Track>(cluster->get_linear_fits()[1], cluster->get_tracker_hits());
               track->sort_associations();
               precluster_solutions[k]->add_track(track);
-              k++;
+              ++k;
             }
           }
           N1 *= 2;
@@ -1011,7 +1051,12 @@ namespace tkrec {
     return;
   }
   
-  // step 5 (straight track) alternative: Track -> Trajectories
+//____________________________________________________________________________
+//////////////////////////////////////////////////////////////////////////////
+//// step 5: Kink finding and connecting into polyline trajectories ///////////
+//////////////////////////////////////////////////////////////////////////////
+  
+  // master function of step 5 (straight track mode): Track -> non-kinked Trajectories
   void Algos::create_line_trajectories()
   {
     // proccess is done separately for each precluster
@@ -1035,7 +1080,7 @@ namespace tkrec {
     return;
   }
   
-  // step 5: Kink finding and connecting into polyline trajectories
+  // master function of step 5 (polyline track mode): Track -> kinked Trajectories
   void Algos::create_polyline_trajectories()
   {
     // proccess is done separately for each precluster
@@ -1058,7 +1103,6 @@ namespace tkrec {
           // creating trajectory points // TODO this could be one function (probably works)
           if(trajectory->has_kink())
           {
-            //create_polyline_trajectory_points(trajectory);
             build_polyline_trajectory(precluster_solution, trajectory);
           }
           // line trajectories are more simple
@@ -1165,7 +1209,8 @@ namespace tkrec {
         // (connection is fake if no associated tracker hits are near the candidate kink point)
         
         PointHdl kink_point_hdl = std::make_shared<Point>(kink_point);
-        // detecting close hits on track1
+        
+        // detecting close hit on track1
         bool match1_found = false;
         for(auto & association : track1->get_associations())
         {
@@ -1197,17 +1242,13 @@ namespace tkrec {
     // connection_counter stores the number of kink candidates for each linear track
     std::vector<int> connection_counter(no_tracks, 0);
     for(int i = 0; i < no_tracks; ++i)
-      for(int j = 0; j < no_tracks; ++j)
-      {
-        if(connections[j][i])
-        {
-          ++(connection_counter[i]);
-        }
-      }
+    {
+      connection_counter[i] = std::accumulate(connections[i].begin(), connections[i].end(), 0);
+    }
     
     // connecting the tracks = "trajectorizing"
     std::vector<bool> trajectorized(no_tracks, false);
-    for(int i = 0; i < no_tracks; i++)
+    for(int i = 0; i < no_tracks; ++i)
     {
       // tracks with no kink candidates can be finalized as a trajectory
       if(connection_counter[i] == 0)
@@ -1233,8 +1274,8 @@ namespace tkrec {
             {
               next_index = j;
               composite_track.push_back(tracks[next_index]);
-                    trajectorized[next_index] = true;
-                  break;
+              trajectorized[next_index] = true;
+              break;
             }
           }
           // checking for the end od polyline trajectory
@@ -1278,8 +1319,8 @@ namespace tkrec {
                   point3.y - point2.y,
                   point3.z - point2.z };
     double angle = vec1.x * vec2.x + vec1.y * vec2.y + vec1.z * vec2.z;
-    double norm1 = std::sqrt(std::pow(vec1.x, 2) + pow(vec1.y, 2) + pow(vec1.z, 2));
-    double norm2 = std::sqrt(std::pow(vec2.x, 2) + pow(vec2.y, 2) + pow(vec2.z, 2));
+    double norm1 = std::hypot(vec1.x, vec1.y, vec1.z);
+    double norm2 = std::hypot(vec2.x, vec2.y, vec2.z);
     angle /= (norm1 * norm2);
     angle = std::max(-1.0, std::min(1.0, angle));
     angle = std::acos(angle);
@@ -1299,7 +1340,7 @@ namespace tkrec {
 
     // finding the kink points
     std::vector<PointHdl> kink_points;
-    for(auto i = 0u; i < segments.size() - 1; i++)
+    for(auto i = 0u; i < segments.size() - 1; ++i)
     {
       Point intersection = get_intersection(segments[i], segments[i+1]);
       kink_points.push_back( std::make_shared<Point>(intersection) );
@@ -1469,9 +1510,16 @@ namespace tkrec {
     return;
   }
   
-  // step 6: Trajectory refinement
+  
+  
+//____________________________________________________________________________
+//////////////////////////////////////////////////////////////////////////////
+//// step 6: Trajectory refinement ///////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+    
+  // master function of step 6
   //  - clustering refinement, trajectory connecting, fit quality calculation
-  // (Potentially maximum likelihood refinement of the polyline fits)
+  //  - Potentially maximum likelihood refinement of the polyline fits...
   void Algos::refine_trajectories()
   {
   	// proccess is done separately for each precluster
@@ -1505,13 +1553,6 @@ namespace tkrec {
         for(auto & trajectory : precluster_solution->get_trajectories())
         {
           evaluate_trajectory(trajectory);
-          /*
-          std::cout << "	MSE: " << trajectory->get_MSE() << std::endl;
-          std::cout << "	MSE_R: " << trajectory->get_MSE_R() << std::endl;
-          std::cout << "	MSE_Z: " << trajectory->get_MSE_Z() << std::endl;
-          std::cout << "	chi: " << trajectory->get_chi_squared() << std::endl;
-          std::cout << "	chi_R: " << trajectory->get_chi_squared_R() << std::endl;
-          std::cout << "	chi_Z: " << trajectory->get_chi_squared_Z() << "\n" << std::endl;*/
         }
       }
     }
@@ -1640,7 +1681,7 @@ namespace tkrec {
     {       
       bool connection_found = false;
       auto & trajectory_points1 = trajectories[i]->get_trajectory_points();
-      for(auto j = i + 1; j < trajectories.size(); j++)
+      for(auto j = i + 1; j < trajectories.size(); ++j)
       {
         auto & trajectory_points2 = trajectories[j]->get_trajectory_points();
         
@@ -1814,26 +1855,22 @@ namespace tkrec {
       {
         ++i;
       }
-      else
-      {
-        //trajectories[i]->update_segments();
-      }
-
     }
     return;
   }
-  
   
   // checks whether all tracker hits are associated to correct segment inside a polyline trajectory
   // if not - associates it to the correct segment or removes it from the trajectory
   void Algos::remove_wrong_hits_associations(PreclusterSolutionHdl & precluster_solution, TrajectoryHdl & trajectory)
   {
+    // tolerance primarily for comparing two doubles 
     const double tolerance = 0.01;
+    
     std::vector<TrackHdl> & segments = trajectory->get_segments();
     std::vector<PointHdl> & traj_points = trajectory->get_trajectory_points();
     std::vector<ConstTrackerHitHdl> & unclustered_tracker_hits = precluster_solution->get_unclustered_tracker_hits();
     
-    for(auto i = 0u; i < segments.size(); i++)
+    for(auto i = 0u; i < segments.size(); ++i)
     {
       ConstPointHdl start = traj_points[i];
       ConstPointHdl end   = traj_points[i+1];
@@ -1852,9 +1889,9 @@ namespace tkrec {
         
         double t_j = associations[j].parameter_t;
         // checking if the point is in bounds of its segments (correct association)
-        if( t_start <= t_j + tolerance && t_j - tolerance <= t_end ) 
+        if( (t_start <= t_j + tolerance) && (t_j - tolerance <= t_end) ) 
         {
-          j++;
+          ++j;
           continue;
         }
         // erasing the hit association point from the trajectory
@@ -1866,14 +1903,13 @@ namespace tkrec {
     }
     return;
   }   
-    
-  // TODO improve the association criteria for hits near kinks!!!
+  
   // goes through unclustered tracker hits of a precluster solution and checks
   // if it can be associated to some segment of some trajectory
   void Algos::refine_clustering(PreclusterSolutionHdl & precluster_solution)
   {
     const double distance_threshold = _config_.clustering_hit_association_distance;
-    const double max_distance = _config_.polylines_max_extention_distance;
+    const double max_extention_distance = _config_.polylines_max_extention_distance;
     
     auto & unclustered_tracker_hits = precluster_solution->get_unclustered_tracker_hits();
     auto & trajectories = precluster_solution->get_trajectories();
@@ -1894,7 +1930,7 @@ namespace tkrec {
       trajectory_starts.reserve(segments.size());
       trajectory_ends.reserve(segments.size());
 
-      for(auto i = 0u; i < segments.size(); i++)
+      for(auto i = 0u; i < segments.size(); ++i)
       {
         ConstPointHdl start = traj_points[i];
         ConstPointHdl end = traj_points[i+1];
@@ -1913,22 +1949,22 @@ namespace tkrec {
     while(i < unclustered_tracker_hits.size())
     {
       ConstTrackerHitHdl hit = unclustered_tracker_hits[i];
-      double hit_x = hit->get_x();
-      double hit_y = hit->get_y();
-      double hit_R = hit->get_R();
+      const double hit_x = hit->get_x();
+      const double hit_y = hit->get_y();
+      const double hit_R = hit->get_R();
       bool clustered = false;
-      for(auto j = 0u; j < trajectories.size(); j++)
+      for(auto j = 0u; j < trajectories.size(); ++j)
       {
         if( clustered ) break;
         
         auto & segments = trajectories[j]->get_segments();
         auto & traj_points = trajectories[j]->get_trajectory_points(); 
-        for(auto k = 0u; k < segments.size(); k++)
+        for(auto k = 0u; k < segments.size(); ++k)
         {
-          double cos_phi = std::cos(segments[k]->get_phi());
-          double sin_phi = std::sin(segments[k]->get_phi());
+          const double cos_phi = std::cos(segments[k]->get_phi());
+          const double sin_phi = std::sin(segments[k]->get_phi());
           
-          // checking if the hit is close to the line (segment without bounds)
+      // 1. checking if the hit is close to the line (segment without bounds)
           //TODO possible to add vertical distance as well
           double distance = std::abs(segments[k]->get_r() - hit_x * sin_phi + hit_y * cos_phi) - hit_R;
           if( std::abs(distance) > distance_threshold )
@@ -1936,21 +1972,28 @@ namespace tkrec {
                 continue;
           }
                   
-         // checking if the hit is within bounds of the segment
-          double t = hit_x * cos_phi + hit_y * sin_phi;
+     // 2. checking if the hit is within bounds of the segment
           bool association_found = false;
-          bool trajectory_extention_needed = false;
+          const double t = hit_x * cos_phi + hit_y * sin_phi;          
+          const double t_start = t_starts[j][k];
+          const double t_end = t_ends[j][k];
+          
           auto position = 0u;
           std::vector<Association> & associations_k = segments[k]->get_associations();
-          PointHdl end_point;   
+
+          // hit might not be within the current segment ends, but might align well if we prolong the segment a little 
+          // only the first and last segment can be prolonged! cases (k == 0) or (k == segments.size() - 1)
+          bool trajectory_extention_needed = false;
+          // new end_point in case of extention
+          PointHdl end_point;             
        
-          // tracker hit is in the middle of a segment
-          if(std::min(t_starts[j][k], t_ends[j][k]) <= t &&
-             std::max(t_starts[j][k], t_ends[j][k]) >= t)
+        // A) tracker hit is in the middle of existing segment (no extentions)
+          if(std::min(t_start, t_end) <= t &&
+             std::max(t_start, t_end) >= t)
           {
             association_found = true;
             
-            // finding where the hit belong on the line (tracker_hits and tracker_hit_points are sorted vectors)
+            // finding where the hit belongs on the line (tracker_hits and tracker_hit_points are sorted vectors)
             while(position < associations_k.size())
             {
               if(t < associations_k[position].parameter_t)
@@ -1959,20 +2002,20 @@ namespace tkrec {
               }
               else
               {
-                position++;           
+                ++position;           
               }
             }        
           }
           
-          // first and last segment has to be handled separately - new hit can prolong the segment
-          // first segment case
+        // B) tracker hit can be added by extending the first segment 
           else if( k == 0 )
           {
-            if( (t_ends[j][k] > t_starts[j][k] && t < t_starts[j][k]) ||
-                (t_ends[j][k] < t_starts[j][k] && t >= t_starts[j][k]) )
+            // checking if the potential extention is in the right direction 
+            if( (t_end > t_start && t < t_start) ||
+                (t_end < t_start && t >= t_start) )
             {
-              double distance = std::abs(t - t_starts[j][k]);
-              if(distance < max_distance)
+              const double distance = std::abs(t - t_start);
+              if(distance < max_extention_distance)
               {
                 association_found = true;
                 trajectory_extention_needed = true;
@@ -1982,14 +2025,15 @@ namespace tkrec {
             }
           }
           
-          // last segment case
+        // C) tracker hit can be added by extending the last segment 
           else if( k == segments.size() - 1 )
           {
-            if( (t_ends[j][k] > t_starts[j][k] && t >= t_ends[j][k]) ||
-                (t_ends[j][k] < t_starts[j][k] && t <= t_ends[j][k]) )
+            // checking if the potential extention is in the right direction
+            if( (t_end > t_start && t >= t_end) ||
+                (t_end < t_start && t <= t_end) )
             {
-              double distance = std::abs(t - t_ends[j][k]);
-              if(distance < max_distance)
+              const double distance = std::abs(t - t_end);
+              if(distance < max_extention_distance)
               {
                 association_found = true;
                 trajectory_extention_needed = true;
@@ -1999,6 +2043,8 @@ namespace tkrec {
             }
           } 
           
+          
+      // 3. if good option found, the tracker hit is associated
           if( association_found )
           {
             Association new_association(hit);
@@ -2026,15 +2072,20 @@ namespace tkrec {
       }
       if(not clustered)
       {
-        i++;
+        ++i;
       }
     }
     
     return;
   }
   
+  
+//____________________________________________________________________________
+//////////////////////////////////////////////////////////////////////////////
+//// step 7: Combining precluster solutions into all solutions ///////////////
+//////////////////////////////////////////////////////////////////////////////
 
-  // step 7: Combining precluster solutions into all solutions
+  // master function of step 7
   void Algos::create_solutions()
   {
     // caluclating needed number of solutions
@@ -2095,11 +2146,11 @@ namespace tkrec {
     int no_unclustered_hit1 = 0;
     double chi2_sum1 = 0.0;
 
-    for(auto & precluster_solution : solution1->get_precluster_solutions())
+    for(const auto & precluster_solution : solution1->get_precluster_solutions())
     {
-      auto & trajectories = precluster_solution->get_trajectories();
+      const auto & trajectories = precluster_solution->get_trajectories();
       no_trajectories1 += trajectories.size();
-      for(auto & trajectory : trajectories)
+      for(const auto & trajectory : trajectories)
       {
         no_segments1 += trajectory->get_segments().size();
         chi2_sum1 += trajectory->get_chi_squared();
@@ -2112,11 +2163,11 @@ namespace tkrec {
     int no_unclustered_hit2 = 0;
     double chi2_sum2 = 0.0;
     
-    for(auto & precluster_solution : solution2->get_precluster_solutions())
+    for(const auto & precluster_solution : solution2->get_precluster_solutions())
     {
       auto & trajectories = precluster_solution->get_trajectories();
       no_trajectories2 += trajectories.size();
-      for(auto & trajectory : trajectories)
+      for(const auto & trajectory : trajectories)
       {
         no_segments2 += trajectory->get_segments().size();
         chi2_sum2 += trajectory->get_chi_squared();
@@ -2124,7 +2175,7 @@ namespace tkrec {
       no_unclustered_hit2 += precluster_solution->get_unclustered_tracker_hits().size();
     }
     
-    //TODO how shoudl this work??
+    //TODO how shoudl this work?
     if( no_segments1 == no_segments2 )
     {
       if( no_trajectories1 == no_trajectories2 )
@@ -2145,106 +2196,6 @@ namespace tkrec {
     std::sort(solutions.begin(), solutions.end(), compare_solutions); 
   }
 
-
-
-
-  void depth_first_search(int node, 
-											   const std::vector<std::vector<int>> & adjacency, 
-											   std::vector<bool> & visited, 
-											   std::vector<int> & cluster_indices)
-  {
-    std::stack<int> stack;
-    stack.push(node);
-    visited[node] = true;
-
-    while (!stack.empty())
-    {
-      int current = stack.top();
-      stack.pop();
-      cluster_indices.push_back(current);
-
-      for(int neighbor : adjacency[current])
-      {
-        if(!visited[neighbor])
-        {
-          visited[neighbor] = true;
-          stack.push(neighbor);
-        }
-      }
-    }
-  }
-
-
-
-  // spatial clustering - separates a vector of tracker hits into spatialy distant subgroups (vectors)
-  std::vector<std::vector<ConstTrackerHitHdl>> Algos::separate_hits(const std::vector<ConstTrackerHitHdl> & hits)
-  {
-
-    const double distance_treshold = _config_.clustering_max_distance;
-    const size_t n = hits.size();
-
-    // Step 1: build adjacency graph
-    std::vector<std::vector<int>> adjacency(n); // adjacency[i] = list of indices connected to hit i
-    
-    for(size_t i = 0; i < n; ++i)
-    {
-      for(size_t j = i+1; j < n; ++j)
-      {
-        double dx = hits[i]->get_x() - hits[j]->get_x();
-        double dy = hits[i]->get_y() - hits[j]->get_y();
-        double distance = std::hypot(dx, dy);
-
-        if (distance < distance_treshold)
-        {
-          adjacency[i].push_back(j);
-          adjacency[j].push_back(i);
-        }
-    	}
-    }
-
-    // Step 2: explore connected components
-    std::vector<bool> visited(n, false);
-    std::vector<std::vector<ConstTrackerHitHdl>> clusters;
-
-    for(size_t i = 0; i < n; ++i)
-    {
-      if(visited[i]) continue;
-
-      std::vector<int> cluster_indices;
-      depth_first_search(i, adjacency, visited, cluster_indices);
-
-      std::vector<ConstTrackerHitHdl> cluster;
-      for(int index : cluster_indices)
-      {
-        cluster.push_back(hits[index]);
-      }
-
-      clusters.push_back(std::move(cluster));
-    }
-
-    return clusters;
-  }
-
-  
-  // checks if the minimum distance between triggered anode wires of two clusters is lower than "preclustering_distance_treshold"
-  bool Algos::clusters_close(const std::vector<ConstTrackerHitHdl> & cluster1,
-                             const std::vector<ConstTrackerHitHdl> & cluster2) const
-  {
-  	const double distance_treshold = _config_.clustering_max_distance;
-    for(const auto & hit1 : cluster1)
-    {
-      for(const auto & hit2 : cluster2)
-      {
-        // treshold distance of 3 tracker cells
-        double distance = std::hypot( hit1->get_x() - hit2->get_x(), hit1->get_y() - hit2->get_y());
-        if( distance < distance_treshold )
-        {
-          return true;
-        }
-      }
-    }	
-    return false; 
-  }
 
 
 

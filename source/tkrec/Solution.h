@@ -25,8 +25,8 @@ namespace tkrec {
     
     Solution() = default;	
     Solution(const std::vector<PreclusterSolutionHdl> & precluster_solutions);	
-    virtual ~Solution() = default;    
-
+    virtual ~Solution() = default;  
+   
     std::vector<PreclusterSolutionHdl> & get_precluster_solutions();
     std::vector<ConstPreclusterSolutionHdl> get_precluster_solutions() const;
     

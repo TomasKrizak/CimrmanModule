@@ -102,10 +102,13 @@ namespace tkrec {
     void _populate_working_event_(const datatools::things & workItem);
   
     void _fill_TCD_bank_(const snemo::datamodel::calibrated_data & falaiseCDbank,
-			 snemo::datamodel::tracker_clustering_data & the_tracker_clustering_data) const;
+			  snemo::datamodel::tracker_clustering_data & the_tracker_clustering_data) const;
 
     void _fill_TTD_bank_(snemo::datamodel::tracker_clustering_data & the_tracker_clustering_data,
-			 snemo::datamodel::tracker_trajectory_data & the_tracker_trajectory_data) const;
+			  snemo::datamodel::tracker_trajectory_data & the_tracker_trajectory_data) const;
+			 
+    void _remove_duplicate_clustering_solutions_(snemo::datamodel::tracker_clustering_data & the_tracker_clustering_data,
+        snemo::datamodel::tracker_trajectory_data & the_tracker_trajectory_data) const;
 
     /// Set/initialize default internal resources for the reconstruction module
     void _set_defaults_();

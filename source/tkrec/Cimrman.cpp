@@ -222,6 +222,9 @@ namespace tkrec {
     // Fill TKtrack data into TTD bank
     _fill_TTD_bank_(the_tracker_clustering_data, the_tracker_trajectory_data);
 
+    // removing duplicate clustering solutions and fixing their connections to trajectory solutions
+    _remove_duplicate_clustering_solutions_(the_tracker_clustering_data, the_tracker_trajectory_data);
+
     return falaise::processing::status::PROCESS_OK;
   }
 
@@ -346,7 +349,6 @@ namespace tkrec {
       auto htcs = datatools::make_handle<snedm::TrackerClusteringSolution>();
       the_tracker_clustering_data.append_solution(htcs, true);
       
-      //snedm::tracker_clustering_solution & clustering_solution = the_tracker_clustering_data.get_default(); // TODO: get_default should be handled differently
       htcs->set_solution_id(the_tracker_clustering_data.size() - 1);
       
       auto & all_unclustered_hits = htcs->get_unclustered_hits();
@@ -448,7 +450,9 @@ namespace tkrec {
                    
           //TODO there is no polyline option
           fit_infos.set_algo(snedm::track_fit_algo_type::TRACK_FIT_ALGO_LINE); 
-          fit_infos.set_best(true);
+          
+          // making trajectories of the first solution as best to make them visible in Flvisualize
+          if(i == 0) fit_infos.set_best(true); 
 
           // creating and setting tracker_pattern as a line or polyline
           snedm::TrajectoryPatternHdl h_pattern;
@@ -498,6 +502,79 @@ namespace tkrec {
     }
     
     return;
+  }
+
+
+  void Cimrman::_remove_duplicate_clustering_solutions_(snemo::datamodel::tracker_clustering_data & the_tracker_clustering_data,
+        snemo::datamodel::tracker_trajectory_data & the_tracker_trajectory_data) const
+  {
+    using namespace snemo::datamodel;
+    
+    auto & cluster_solutions = the_tracker_clustering_data.solutions();
+    auto & trajectory_solutions = the_tracker_trajectory_data.get_solutions();
+    
+    // sorting of hits of clusters in clustering solutions
+    for(auto & cl_sol : cluster_solutions)
+    {
+      auto & clusters = cl_sol->get_clusters();
+      for(auto & cl : clusters)
+      {
+        auto & hits = cl->hits();
+        std::sort(hits.begin(), hits.end(), [](const auto& hit1, const auto& hit2)
+        {
+          return hit1->get_hit_id() < hit2->get_hit_id(); 
+        });
+      }
+    }
+    
+    // lambda function for comparing two clustering solutions
+    auto same_solutions = [](const auto & cl_sol1, const auto & cl_sol2)
+    {
+      const auto & clusters1 = cl_sol1->get_clusters();
+      const auto & clusters2 = cl_sol2->get_clusters();      
+      if(clusters1.size() != clusters2.size()) return false; 
+      
+      for(unsigned i = 0; i < clusters1.size(); ++i)
+      {
+        const auto & hits1 = clusters1[i]->hits();
+        const auto & hits2 = clusters2[i]->hits();
+        if(hits1.size() != hits2.size()) return false;
+        
+        for(unsigned j = 0; j < hits1.size(); ++j)
+        {
+          if( hits1[j]->get_hit_id() != hits2[j]->get_hit_id() ) return false;
+        }
+      } 
+      return true;
+    };
+    
+    // detecting duplicates and linking trajectory solutions to unique clustering solutions
+    std::vector<bool> duplicate_solutions(cluster_solutions.size(), false);
+    for(unsigned int i = 0; i < cluster_solutions.size(); ++i)
+    {
+      for(unsigned int j = i + 1; j < cluster_solutions.size(); ++j)
+      {
+        if( same_solutions(cluster_solutions[i], cluster_solutions[j]) )
+        {
+          duplicate_solutions[j] = true;
+          trajectory_solutions[j]->set_clustering_solution( cluster_solutions[i] );
+        }
+      }
+    }
+    
+    // deleting duplicate clustering solutions
+    size_t index = 0; 
+    auto new_end = std::remove_if(cluster_solutions.begin(), cluster_solutions.end(), 
+                      [&duplicate_solutions, &index](const auto & cl_sol){ return duplicate_solutions[index++]; });
+    cluster_solutions.erase(new_end, cluster_solutions.end());
+    
+    // redoing IDs of clustering solutions
+    for(unsigned int i = 0; i < cluster_solutions.size(); ++i)
+    {
+      cluster_solutions[i]->set_solution_id(i);
+      
+    }
+    
   }
 
 } //  end of namespace tkrec

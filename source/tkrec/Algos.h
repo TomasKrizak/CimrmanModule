@@ -54,10 +54,10 @@ namespace tkrec {
       double polylines_max_extention_distance = 120.0;  ///< mm 
       double polylines_max_vertical_distance = 4.0; ///< mm 
       double polylines_min_tracker_hits_distance = 100.0; ///< mm
-      double polylines_max_kink_angle = 120; // degrees??
+      double polylines_max_kink_angle = 120.0; // degrees??
       double polylines_max_trajectories_middlepoint_distance = 10.0;
       double polylines_max_trajectory_endpoints_distance = 75.0;
-      double polylines_max_trajectory_connection_angle = 40;
+      double polylines_max_trajectory_connection_angle = 40.0;
       double polylines_min_distance_from_foil = 75.0;
     //};
     void parse(const datatools::properties & config_);
@@ -87,12 +87,12 @@ namespace tkrec {
     // step 1: preclustering
     void precluster();
     std::vector<std::vector<ConstTrackerHitHdl>> separate_hits(const std::vector<ConstTrackerHitHdl> & hits);
-    bool clusters_close(const std::vector<ConstTrackerHitHdl> & cluster1,
-     			              const std::vector<ConstTrackerHitHdl> & cluster2) const;
-	
+
+
     // step 2: clustering
-    void Legendre_transform_cluster_finder();
-    void clusterize(std::vector<ConstTrackerHitHdl> & tracker_hits, std::vector<ClusterHdl> & clusters);
+    void Legendre_transform_clustering();
+    void clusterize_precluster(std::vector<ConstTrackerHitHdl> & tracker_hits,
+                               std::vector<ClusterHdl> & clusters);
     void find_cluster_Legendre(const std::vector<ConstTrackerHitHdl> & hits, 
                                double & phi_estimate,
                                double & r_estimate) const;
@@ -102,32 +102,35 @@ namespace tkrec {
                                      const double r,
                                      const double distance_threshold);
 
+
     // step 3: MLM line fitting + ambiguity checking and solving
     void make_MLM_fits();
+    void make_ML_estimate(LinearFitHdl fit);
     void detect_ambiguity_type(ClusterHdl cluster);
     void create_mirror_fit(ClusterHdl cluster);
-    void make_ML_estimate(LinearFitHdl fit);
+    
     
     // step 4: Linear fits are associated to tracker hits and combined into a precluster solutions
     void combine_into_precluster_solutions();
+    
     
     // step 5: Kink finding and connecting into polyline trajectories
     void create_polyline_trajectories();
     void create_line_trajectories();
     void create_line_trajectory_points(TrajectoryHdl & trajectory);
     std::vector<std::vector<TrackHdl>> find_polyline_candidates(std::vector<TrackHdl> & tracks,
-                                                      const int side) const;
-    void build_polyline_trajectory(PreclusterSolutionHdl & precluster_solution, TrajectoryHdl & trajectory);    
-    void connect_close_trajectories(PreclusterSolutionHdl & precluster_solution);
-    //void create_polyline_trajectory_points(TrajectoryHdl & trajectory);
-    //void split_fake_polyline_candidates(std::vector<std::vector<TrackHdl>> & trajectory_candidates );
+                                                                const int side) const;
+    void build_polyline_trajectory(PreclusterSolutionHdl & precluster_solution, 
+                                   TrajectoryHdl & trajectory);    
     
 
     // step 6: Trajectory refinement (MLM, clustering refinement...)
     void refine_trajectories();
+    void connect_close_trajectories(PreclusterSolutionHdl & precluster_solution);
     void remove_wrong_hits_associations(PreclusterSolutionHdl & precluster_solution, TrajectoryHdl & trajectory);
     void refine_clustering(PreclusterSolutionHdl & precluster_solution);
     void evaluate_trajectory(TrajectoryHdl & trajectory);
+    
     
     // step 7: Combining precluster solutions into all solutions
     void create_solutions();

@@ -39,6 +39,7 @@ namespace tkrec {
     return all_trajectories;
   }
 
+
   void Solution::print(std::ostream & out_) const
   {
     out_ <<"Solution: " << std::endl;
