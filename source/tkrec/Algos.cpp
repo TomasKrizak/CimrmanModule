@@ -520,10 +520,24 @@ namespace tkrec {
     {
       if(j == largest && sub_clusters[j].size() > 2u)
       {
-        // create and add new cluster to the precluster
-        ClusterHdl cluster = std::make_shared<Cluster>( sub_clusters[j], phi_estimate, r_estimate, false );
-        clusters.push_back( cluster );
-        cluster_found = true;
+	int nb_validz = 0;
+	for (const auto & tracker_hit : sub_clusters[j])
+	  {
+	    if (datatools::is_valid(tracker_hit->get_Z()))
+	      nb_validz++;
+	  }
+	if (nb_validz > 1)
+	  {
+	    // create and add new cluster to the precluster
+	    ClusterHdl cluster = std::make_shared<Cluster>( sub_clusters[j], phi_estimate, r_estimate, false );
+	    clusters.push_back( cluster );
+	    cluster_found = true;
+	  }
+	else
+	  {
+	    // putting the separated hits back into unclustered hits
+	    tracker_hits.insert(tracker_hits.end(), sub_clusters[j].begin(), sub_clusters[j].end());
+	  }
       }
       else
       {
