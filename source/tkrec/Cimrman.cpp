@@ -513,7 +513,7 @@ namespace tkrec {
     auto & cluster_solutions = the_tracker_clustering_data.solutions();
     auto & trajectory_solutions = the_tracker_trajectory_data.get_solutions();
     
-    // sorting of hits of clusters in clustering solutions
+    // sorting of hits of clusters in clustering solutions (based on hit IDs)
     for(auto & cl_sol : cluster_solutions)
     {
       auto & clusters = cl_sol->get_clusters();
@@ -572,9 +572,7 @@ namespace tkrec {
     for(unsigned int i = 0; i < cluster_solutions.size(); ++i)
     {
       cluster_solutions[i]->set_solution_id(i);
-      
     }
-    
   }
 
 } //  end of namespace tkrec

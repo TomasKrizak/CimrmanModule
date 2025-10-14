@@ -305,7 +305,9 @@ namespace tkrec {
 
   void Algos::_process_alpha_()
   {
-    // ??
+    // alpha_track_finder();
+    // combine_into_precluster_solutions();
+    // create_line_trajectories();
     return;
   }
   
@@ -572,9 +574,19 @@ namespace tkrec {
     return;
   }
   
+  // fast Padé approximation of exp(x)
+  // much faster than std::exp with at least 5 digits of precision on range (-4.5, 0) = 3sigma range when used for Gauss 
+  inline float fast_exp(const float x)
+  {
+    float nominator = 1.0f + x*(0.5f + x*(1.0f/9.0f + x*(1.0f/72.0f + x*(1.0f/1008.0f + x*(1.0f/30240.0f)))));
+    float denominator = 1.0f - x*(0.5f - x*(1.0f/9.0f - x*(1.0f/72.0f - x*(1.0f/1008.0f - x*(1.0f/30240.0f)))));
+    return nominator / denominator;
+  }
+  
+  // find_cluster_Legendre is the core function of the entire tracking and the most time expensive function (vast majority of runtime is spend here)
   void Algos::find_cluster_Legendre(const std::vector<ConstTrackerHitHdl> & hits, double & phi_estimate, double & r_estimate) const
   {
-    bool save_sinograms           = _config_.save_sinograms;
+    const bool save_sinograms     = _config_.save_sinograms;
     const double zoom_factor      = _config_.clustering_zoom_factor;
     const uint32_t iterations     = _config_.clustering_no_iterations;
     const uint32_t resolution_phi = _config_.clustering_resolution_phi;
@@ -588,27 +600,27 @@ namespace tkrec {
     // enclosing tracker hits in a smallest possible rectangle (min_x, max_y) x (min_y, max_y)
     std::pair<std::vector<ConstTrackerHitHdl>::const_iterator,
               std::vector<ConstTrackerHitHdl>::const_iterator> minmax_X, minmax_Y;
-    minmax_X = std::minmax_element(hits.begin(), hits.end(), [](const ConstTrackerHitHdl & hit1, const ConstTrackerHitHdl & hit2)
+    minmax_X = std::minmax_element(hits.begin(), hits.end(), [](const auto & hit1, const auto & hit2)
     { 
       return hit1->get_x() <= hit2->get_x();
     });
-    minmax_Y = std::minmax_element(hits.begin(), hits.end(), [](const ConstTrackerHitHdl & hit1, const ConstTrackerHitHdl & hit2)
+    minmax_Y = std::minmax_element(hits.begin(), hits.end(), [](const auto & hit1, const auto & hit2)
     { 
       return hit1->get_y() <= hit2->get_y(); 
     });
     
-    double min_x = hits[minmax_X.first - hits.begin()]->get_x() - _geom_.tc_radius;
-    double max_x = hits[minmax_X.second - hits.begin()]->get_x() + _geom_.tc_radius;
-    double min_y = hits[minmax_Y.first - hits.begin()]->get_y() - _geom_.tc_radius;
-    double max_y = hits[minmax_Y.second - hits.begin()]->get_y() + _geom_.tc_radius;
+    const double min_x = hits[minmax_X.first - hits.begin()]->get_x() - _geom_.tc_radius;
+    const double max_x = hits[minmax_X.second - hits.begin()]->get_x() + _geom_.tc_radius;
+    const double min_y = hits[minmax_Y.first - hits.begin()]->get_y() - _geom_.tc_radius;
+    const double max_y = hits[minmax_Y.second - hits.begin()]->get_y() + _geom_.tc_radius;
     
     // center of the box enclosing the tracker hits
-    double center_X = (max_x + min_x) / 2.0;
-    double center_Y = (max_y + min_y) / 2.0;
+    const double center_X = (max_x + min_x) / 2.0;
+    const double center_Y = (max_y + min_y) / 2.0;
     
     // size of region (delta_phi x delta_R) to be investigated
     double delta_phi = M_PI;
-    double delta_R = std::hypot(max_x - min_x, max_y - min_y); //std::sqrt(std::pow(max_x - min_x, 2.0) + std::pow(max_y - min_y, 2.0));
+    double delta_R = std::hypot(max_x - min_x, max_y - min_y); 
 
     // peak_phi, peak_R store information about peak candidate
     double peak_phi = M_PI / 2.0;
@@ -630,14 +642,29 @@ namespace tkrec {
          r_min,
          r_max);
 
+      // ROOT is slow! working directly with the underlaying array is faster!
+      float* sinograms_array = sinograms.GetArray();
+
+      // caching the values of phi_k, sin(phi_k) and cos(phi_k)
+      double arr_sin[resolution_phi+1];
+      double arr_cos[resolution_phi+1];
+      for(int k = 0; k <= resolution_phi; ++k)
+      {
+        double phi = phi_min + ( k * delta_phi / double(resolution_phi) );
+        arr_sin[k] = std::sin(phi);
+        arr_cos[k] = std::cos(phi);
+      }
+
+      // filling histograms
       for(const auto & hit : hits)
       {
-        // double sigma = hit->get_sigma_R(); // does not work well - better to have global higher sigma
         for(int k = 0; k <= resolution_phi; ++k)
         {
-          double phi = phi_min + ( k * delta_phi / double(resolution_phi) );
+          //double phi = arr_phi[k];
           // r - legendre transform of the center of a circle (Hough transform)
-          double r = (hit->get_x() - center_X) * std::sin(phi) - (hit->get_y() - center_Y) * std::cos(phi);
+          double r = (hit->get_x() - center_X) * arr_sin[k] - (hit->get_y() - center_Y) * arr_cos[k];
+          double R_bin_width = delta_R / double(resolution_r);
+          
           for(int half = 0; half < 2; ++half)
           {	
             // mu - legendre transform of half circle (+R/-R)
@@ -650,42 +677,78 @@ namespace tkrec {
   				  // if the 3sigma regions of the two halves of tracker hit overlap, we restrict the range to the middle (-+half bin for safety) 
 				    if(half == 0)
 				    {
-				    	r2 = std::min(r2, r - 0.5 * (delta_R / double(resolution_r))); 
+				    	r2 = std::min(r2, r - 0.5 * R_bin_width); 
 				    }
 				    else
 				    {
-				    	r1 = std::max(r1, r + 0.5 * (delta_R / double(resolution_r)));
+				    	r1 = std::max(r1, r + 0.5 * R_bin_width);
 				    }
 
             // bin numbers coresponding to r1 and r2 values
-            int bin1 = (double(resolution_r) * (r1 - r_min) / (r_max - r_min)) + 1;
-            int bin2 = (double(resolution_r) * (r2 - r_min) / (r_max - r_min)) + 1;
+            int bin1 = (double(resolution_r) * (r1 - r_min) / delta_R) + 1;
+            int bin2 = (double(resolution_r) * (r2 - r_min) / delta_R) + 1;
               
             // if the 3 sigma borders (bin1 or bin2) are outside the investigate range of the histogtam, we restrict it to the border
             bin1 = std::max(0, bin1);
             bin2 = std::min(int(resolution_r), bin2);
 
             // real values of r coresponding to each bin 
-            double r_j1 = r_min + (r_max - r_min) * double(bin1) / double(resolution_r);
+            double r_j1 = r_min + delta_R * double(bin1) / double(resolution_r);
             double r_j2;
-            for(int binj = bin1; binj < bin2 + 1; ++binj)
+            
+            // for large bins compared to the used sigma of gaussian bluring,
+            // the function is integrated over the bin (in R direction)  
+				    if(	R_bin_width > sigma )
+			      {
+              const double normalization = 1.0f / std::sqrt(2.0)*sigma;
+              for(int binj = bin1; binj < bin2 + 1; ++binj)
+              {
+                r_j2 = r_j1 + R_bin_width;
+                
+                // average probability density in a bin given by gauss distribution with mean in mu 
+                float weight = ( std::erf( (r_j2 - mu) * normalization ) 
+                                - std::erf( (r_j1 - mu) * normalization ) ) 
+                              / (2.0 * R_bin_width);
+
+                // result is 2D histogram of several sinusoid functions f(phi) in convolution with gauss in r                
+                int globalBin = (resolution_phi + 2) * (binj + 1) + k;
+                sinograms_array[globalBin] += weight;
+                
+                // alternative slower versions:
+                //sinograms.AddBinContent( sinograms.GetBin(k, binj + 1), weight);
+                //sinograms.Fill( phi, (r_j2 + r_j1) / 2.0, weight ); //even slower
+
+                r_j1 = r_j2;			
+              }	
+            }
+            // for dense enough binning, the values are plotted without intergating
+            // (saves A LOT of time - erf is expensive)
+            else
             {
-              r_j2 = r_j1 + (r_max - r_min) / double(resolution_r);
-              
-              // average probability density in a bin given by gauss distribution with mean in mu 
-              double weight = ( std::erf( (r_j2 - mu)/(std::sqrt(2.0)*sigma) ) - std::erf( (r_j1 - mu)/(std::sqrt(2.0)*sigma) ) ) 
-                            / (2.0 * delta_R / double(resolution_r));
-              
-              // result is 2D histogram of several sinusoid functions f(phi) in convolution with gauss in r
-              sinograms.Fill( phi, (r_j2 + r_j1) / 2.0, weight );
-              r_j1 = r_j2;			
-            }								
+				      for(int binj = bin1; binj < bin2 + 1; ++binj)
+			        {
+				        r_j2 = r_j1 + R_bin_width;
+				      
+					      // average probability density in a bin given by gauss distribution with mean in mu 
+					      double r_center = (r_j2 + r_j1) * 0.5f;
+					      float weight = (mu - r_center) / sigma;
+					      weight = fast_exp( -0.5f * weight * weight ); // faster approximation of exp(x)
+					    
+					      // result is 2D histogram of several sinusoid functions f(phi) in convolution with gauss in r
+		            int globalBin = (resolution_phi + 2) * (binj + 1) + k;
+                sinograms_array[globalBin] += weight;
+					      
+					      r_j1 = r_j2;
+				      }						
+            }			
           }			
         }	
       }										
 
       // Get bin number of maximum value
-      int maxBin = sinograms.GetMaximumBin();
+      //int maxBin = sinograms.GetMaximumBin();
+      int nbins = sinograms.GetNcells();
+      int maxBin = static_cast<int>(std::max_element(sinograms_array, sinograms_array + nbins) - sinograms_array);
 
       // Get X and Y values corresponding to the maximum bin
       int bin_phi, bin_R, bin_Z;
@@ -698,6 +761,7 @@ namespace tkrec {
 
       if( save_sinograms ) 
       {
+        sinograms.SetEntries(resolution_phi * resolution_r);
         TCanvas c2("sinograms", "sinograms", 1000, 800);
         c2.cd();
         sinograms.SetStats(0);
@@ -722,8 +786,7 @@ namespace tkrec {
     phi_estimate = peak_phi;
     r_estimate  = peak_R + center_X * std::sin(peak_phi) - center_Y * std::cos(peak_phi);
   }
-  
-  
+
 //____________________________________________________________________________
 //////////////////////////////////////////////////////////////////////////////
 //// step 3: MLM line fitting + ambiguity checking and solving ///////////////
