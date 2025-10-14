@@ -1,0 +1,27 @@
+# Ignore build artifacts
+build/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# Ignore generated binaries and libraries
+*.o
+*.so
+*.a
+*.exe
+
+# Ignore visualization outputs
+*.png
+*.root
+
+# Ignore common temporary files
+*.log
+*.tmp
+*.swp
+*.bak
+*.nfs*
+
+# Ignore IDE/project settings
+.vscode/
+.idea/
