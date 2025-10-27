@@ -12,4 +12,4 @@ cmake .. \
   -DCMAKE_CXX_FLAGS="-march=native -funroll-loops -fomit-frame-pointer"
 
 # Build using all available cores
-make -j$(nproc)
+make
