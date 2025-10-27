@@ -10,6 +10,5 @@ cd build
 cmake .. \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo \
   -DCMAKE_CXX_FLAGS="-march=native -funroll-loops -fomit-frame-pointer"
-
-# Build using all available cores
+  
 make
