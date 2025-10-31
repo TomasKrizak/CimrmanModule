@@ -23,7 +23,7 @@ namespace tkrec {
     // 4 == mirror image along line y = -x + (y0-x0) 
     int ambiguity_type = 0;
     
-    std::vector<ConstTrackerHitHdl> tracker_hits;
+    std::vector<TrackerHitHdl> tracker_hits;
     std::vector<LinearFitHdl> linear_fits;
     
     double phi_estimate = datatools::invalid_real();
@@ -36,13 +36,13 @@ namespace tkrec {
   public:
     
     Cluster() = default;		
-    Cluster(const std::vector<ConstTrackerHitHdl> & _tracker_hits,
+    Cluster(const std::vector<TrackerHitHdl> & _tracker_hits,
 		        double _phi_estimate,
 		        double _r_estimate);
     virtual ~Cluster() = default;
 		
-    std::vector<ConstTrackerHitHdl> & get_tracker_hits();
-    const std::vector<ConstTrackerHitHdl> & get_tracker_hits() const;
+    std::vector<TrackerHitHdl> & get_tracker_hits();
+    const std::vector<ConstTrackerHitHdl> get_const_tracker_hits() const;
     
     std::vector<LinearFitHdl> & get_linear_fits();
     std::vector<ConstLinearFitHdl> get_linear_fits() const;

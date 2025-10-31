@@ -7,7 +7,7 @@
 
 #include "tkrec/TrackerHit.h"
 #include "tkrec/Cluster.h"
-#include "tkrec/AlphaCluster.h"
+#include "tkrec/DelayedCluster.h"
 #include "tkrec/PreclusterSolution.h"
 
 #include <datatools/logger.h>
@@ -21,7 +21,7 @@ namespace tkrec {
     bool prompt = true;
     int side = -1;
     
-    std::vector<ConstTrackerHitHdl> unclustered_tracker_hits;
+    std::vector<TrackerHitHdl> unclustered_tracker_hits;
     std::vector<ClusterHdl> linear_clusters;
     std::vector<PreclusterSolutionHdl> precluster_solutions;
     
@@ -33,15 +33,15 @@ namespace tkrec {
   public:
     
     Precluster() = default;	
-    Precluster(const std::vector<ConstTrackerHitHdl> & tracker_hits, bool _prompt, int _side);	
+    Precluster(const std::vector<TrackerHitHdl> & tracker_hits, bool _prompt, int _side);	
     virtual ~Precluster() = default;    
     bool is_prompt() const;
     bool is_delayed() const;
     int get_side() const;
     void set_side(int _side);
 
-    std::vector<ConstTrackerHitHdl> & get_unclustered_tracker_hits();
-    const std::vector<ConstTrackerHitHdl> & get_unclustered_tracker_hits() const;
+    std::vector<TrackerHitHdl> & get_unclustered_tracker_hits();
+    std::vector<ConstTrackerHitHdl> get_unclustered_const_tracker_hits() const;
     
     std::vector<ClusterHdl> & get_clusters();
     std::vector<ConstClusterHdl> get_clusters() const;

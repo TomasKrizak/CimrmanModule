@@ -109,27 +109,27 @@ namespace tkrec {
     
     // step 1: preclustering
     void precluster();
-    std::vector<std::vector<ConstTrackerHitHdl>> separate_hits(const std::vector<ConstTrackerHitHdl> & hits);
+    std::vector<std::vector<TrackerHitHdl>> separate_hits(const std::vector<TrackerHitHdl> & hits);
 
 
     // step 2: clustering
     void Legendre_transform_clustering();
-    void clusterize_precluster(std::vector<ConstTrackerHitHdl> & tracker_hits,
+    void clusterize_precluster(std::vector<TrackerHitHdl> & tracker_hits,
                                std::vector<ClusterHdl> & clusters);
-    void find_cluster_Legendre(const std::vector<ConstTrackerHitHdl> & hits, 
+    void find_cluster_Legendre(const std::vector<TrackerHitHdl> & hits, 
                                double & phi_estimate,
                                double & r_estimate) const;
-    void separate_close_hits_to_line(std::vector<ConstTrackerHitHdl> & hits,
-                                     std::vector<ConstTrackerHitHdl> & hits_separated,
+    void separate_close_hits_to_line(std::vector<TrackerHitHdl> & hits,
+                                     std::vector<TrackerHitHdl> & hits_separated,
                                      const double phi,
                                      const double r,
                                      const double distance_threshold);
 
     // step 2: alpha clustering and track estimation
     void alpha_clustering();
-    std::pair<double, double> find_alpha_cluster(const std::vector<ConstTrackerHitHdl> & hits);
-    void estimate_alpha_track(AlphaClusterHdl alpha_cluster);
-    void find_reference_time_bounds(AlphaClusterHdl alpha_cluster);
+    std::pair<double, double> find_delayed_cluster(const std::vector<TrackerHitHdl> & hits);
+    void estimate_delayed_track(DelayedClusterHdl delayed_cluster);
+    void find_reference_time_bounds(DelayedClusterHdl delayed_cluster);
 
 
     // step 3: MLM line fitting + ambiguity checking and solving

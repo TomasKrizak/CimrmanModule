@@ -11,8 +11,9 @@ namespace tkrec
   {
     double x, y, z, r;
     double const_R, const_Z;
-    no_R = cluster->get_tracker_hits().size();
-    for(const auto & hit : cluster->get_tracker_hits())
+    const auto hits = cluster->get_const_tracker_hits();
+    no_R = hits.size();
+    for(const auto & hit : hits)
     {
       x = hit->get_x();
       y = hit->get_y();

@@ -421,10 +421,10 @@ namespace tkrec {
   void Algos::precluster()
   {
     // basic preclustering into delayed/prompt hits and into halves of tracker
-    std::vector<ConstTrackerHitHdl> prompt_hits_side0;
-    std::vector<ConstTrackerHitHdl> prompt_hits_side1;
-    std::vector<ConstTrackerHitHdl> delayed_hits_side0;
-    std::vector<ConstTrackerHitHdl> delayed_hits_side1;
+    std::vector<TrackerHitHdl> prompt_hits_side0;
+    std::vector<TrackerHitHdl> prompt_hits_side1;
+    std::vector<TrackerHitHdl> delayed_hits_side0;
+    std::vector<TrackerHitHdl> delayed_hits_side1;
     
     for(auto & hit : _event_->get_tracker_hits())
     {
@@ -461,7 +461,7 @@ namespace tkrec {
     }
     
     // additional spatial clustering 
-    std::vector<std::vector<ConstTrackerHitHdl>> temp_preclusters = separate_hits(prompt_hits_side0);
+    std::vector<std::vector<TrackerHitHdl>> temp_preclusters = separate_hits(prompt_hits_side0);
     DT_LOG_DEBUG(_config_.verbosity, "Prompt preclusters on side 0: " << temp_preclusters.size());
     for(auto & prec : temp_preclusters)
     {
@@ -516,7 +516,7 @@ namespace tkrec {
   }
 
   // spatial clustering - separates a vector of tracker hits into spatialy distant subgroups (vectors)
-  std::vector<std::vector<ConstTrackerHitHdl>> Algos::separate_hits(const std::vector<ConstTrackerHitHdl> & hits)
+  std::vector<std::vector<TrackerHitHdl>> Algos::separate_hits(const std::vector<TrackerHitHdl> & hits)
   {
 
     const double distance_treshold = _config_.clustering.max_distance;
@@ -544,7 +544,7 @@ namespace tkrec {
 
     // building clusters
     std::vector<bool> visited(n, false);
-    std::vector<std::vector<ConstTrackerHitHdl>> clusters;
+    std::vector<std::vector<TrackerHitHdl>> clusters;
 
     for(size_t i = 0; i < n; ++i)
     {
@@ -553,7 +553,7 @@ namespace tkrec {
       std::vector<int> cluster_indices;
       depth_first_search(i, adjacency, visited, cluster_indices);
 
-      std::vector<ConstTrackerHitHdl> cluster;
+      std::vector<TrackerHitHdl> cluster;
       for(int index : cluster_indices)
       {
         cluster.push_back(hits[index]);
@@ -580,7 +580,7 @@ namespace tkrec {
       // clusterizes separatelly every prompt precluster
       if( precluster->is_delayed() ) continue;
      
-      std::vector<ConstTrackerHitHdl> & unclustered_hits = precluster->get_unclustered_tracker_hits(); 
+      std::vector<TrackerHitHdl> & unclustered_hits = precluster->get_unclustered_tracker_hits(); 
       std::vector<ClusterHdl> & clusters = precluster->get_clusters();
 
       // recursively applies Legendre transform and spatial clustering to find linear clusters
@@ -590,7 +590,7 @@ namespace tkrec {
     return;
   }
   
-  void Algos::clusterize_precluster(std::vector<ConstTrackerHitHdl> & tracker_hits, std::vector<ClusterHdl> & clusters)
+  void Algos::clusterize_precluster(std::vector<TrackerHitHdl> & tracker_hits, std::vector<ClusterHdl> & clusters)
   {
     if( tracker_hits.size() < 3u ) return;
     
@@ -601,11 +601,11 @@ namespace tkrec {
     find_cluster_Legendre( tracker_hits, phi_estimate, r_estimate );
     
     // identifying which tracker hits belong to phi, r line candidate
-    std::vector<ConstTrackerHitHdl> cluster_hits;
+    std::vector<TrackerHitHdl> cluster_hits;
     separate_close_hits_to_line(tracker_hits, cluster_hits, phi_estimate, r_estimate, association_distance);
     
     // additional spatial separation to filter coincidental associations to the cluster          
-    std::vector<std::vector<ConstTrackerHitHdl>> sub_clusters = separate_hits(cluster_hits);
+    std::vector<std::vector<TrackerHitHdl>> sub_clusters = separate_hits(cluster_hits);
     
     // finding the biggest group
     int largest = 0;
@@ -641,7 +641,7 @@ namespace tkrec {
     // meaningful candidate found (repeating the proccess on the rest of hits)
     if( cluster_found ) 
     {
-      std::vector<std::vector<ConstTrackerHitHdl>> sub_groups = separate_hits(tracker_hits); 
+      std::vector<std::vector<TrackerHitHdl>> sub_groups = separate_hits(tracker_hits); 
       tracker_hits.clear();
       for(auto & sub_group : sub_groups)
       {
@@ -652,8 +652,8 @@ namespace tkrec {
   }
   
   
-  void Algos::separate_close_hits_to_line(std::vector<ConstTrackerHitHdl> & hits,
-                                          std::vector<ConstTrackerHitHdl> & hits_separated,
+  void Algos::separate_close_hits_to_line(std::vector<TrackerHitHdl> & hits,
+                                          std::vector<TrackerHitHdl> & hits_separated,
                                           const double phi, const double r, const double distance_threshold)
   {
     auto it = hits.begin();
@@ -688,7 +688,7 @@ namespace tkrec {
   }
   
   // find_cluster_Legendre is the core function of the entire tracking and the most time expensive function (vast majority of runtime is spend here)
-  void Algos::find_cluster_Legendre(const std::vector<ConstTrackerHitHdl> & hits, double & phi_estimate, double & r_estimate) const
+  void Algos::find_cluster_Legendre(const std::vector<TrackerHitHdl> & hits, double & phi_estimate, double & r_estimate) const
   {
     const bool save_sinograms     = _config_.clustering.save_sinograms;
     const double zoom_factor      = _config_.clustering.zoom_factor;
@@ -702,8 +702,8 @@ namespace tkrec {
     //int resolution_r = std::min(int(delta_R / max_precision_r), resolution_r);
     
     // enclosing tracker hits in a smallest possible rectangle (min_x, max_y) x (min_y, max_y)
-    std::pair<std::vector<ConstTrackerHitHdl>::const_iterator,
-              std::vector<ConstTrackerHitHdl>::const_iterator> minmax_X, minmax_Y;
+    std::pair<std::vector<TrackerHitHdl>::const_iterator,
+              std::vector<TrackerHitHdl>::const_iterator> minmax_X, minmax_Y;
     minmax_X = std::minmax_element(hits.begin(), hits.end(), [](const auto & hit1, const auto & hit2)
     { 
       return hit1->get_x() <= hit2->get_x();
@@ -989,7 +989,7 @@ namespace tkrec {
   
   void Algos::detect_ambiguity_type(ClusterHdl cluster)
   {
-    std::vector<ConstTrackerHitHdl> hits = cluster->get_tracker_hits();
+    const std::vector<TrackerHitHdl> hits = cluster->get_tracker_hits();
     
     // detecting ambiguity type
     const double x0 = hits.front()->get_x();
@@ -1076,7 +1076,7 @@ namespace tkrec {
     }
     
     ConstLinearFitHdl fit = cluster->get_linear_fits().front();
-    const std::vector<ConstTrackerHitHdl> & hits = cluster->get_tracker_hits();
+    const std::vector<TrackerHitHdl> hits = cluster->get_tracker_hits();
     double x0 = hits.front()->get_x();
     double y0 = hits.front()->get_y();
     
@@ -1164,19 +1164,20 @@ namespace tkrec {
       { 
         PreclusterSolutionHdl precluster_solution = std::make_shared<PreclusterSolution>();
         precluster_solutions.push_back(precluster_solution);
-        precluster_solution->get_unclustered_tracker_hits() = precluster->get_unclustered_tracker_hits();
+        precluster_solution->get_unclustered_tracker_hits() = precluster->get_unclustered_const_tracker_hits();
       }
       
       // filling the precluster solutions with different track combinations
       int N1 = 1;
-      for(auto & cluster : precluster->get_clusters())
+      for(const auto & cluster : precluster->get_clusters())
       {
         // for each unambiguous cluster its single track is added to all solutions
         if(cluster->get_linear_fits().size() == 1u)
         {
           for(auto & precluster_solution : precluster_solutions)
           {  
-            TrackHdl track = std::make_shared<Track>(cluster->get_linear_fits().front(), cluster->get_tracker_hits());
+            const auto hits = cluster->get_const_tracker_hits();
+            TrackHdl track = std::make_shared<Track>(cluster->get_linear_fits().front(), hits);
             track->sort_associations();
             precluster_solution->add_track(track);
           }
@@ -1195,14 +1196,16 @@ namespace tkrec {
             int N2 = no_precluster_solutions / (N1 * 2);
             for(int j = 0; j < N2; ++j)
             {  
-              TrackHdl track = std::make_shared<Track>(cluster->get_linear_fits()[0], cluster->get_tracker_hits());
+              const auto hits = cluster->get_const_tracker_hits();
+              TrackHdl track = std::make_shared<Track>(cluster->get_linear_fits()[0], hits);
               track->sort_associations();
               precluster_solutions[k]->add_track(track);
               ++k;
             }
             for(int j = 0; j < N2; ++j)
             {  
-              TrackHdl track = std::make_shared<Track>(cluster->get_linear_fits()[1], cluster->get_tracker_hits());
+              const auto hits = cluster->get_const_tracker_hits();
+              TrackHdl track = std::make_shared<Track>(cluster->get_linear_fits()[1], hits);
               track->sort_associations();
               precluster_solutions[k]->add_track(track);
               ++k;
@@ -2392,18 +2395,18 @@ namespace tkrec {
       // clusterizes separatelly every prompt precluster
       if( precluster->is_delayed() )
       {        
-        std::vector<ConstTrackerHitHdl> & unclustered_hits = precluster->get_unclustered_tracker_hits(); 
+        std::vector<TrackerHitHdl> & unclustered_hits = precluster->get_unclustered_tracker_hits(); 
         if(unclustered_hits.size() > 2)
         {
-          auto [phi_min_ptr, phi_max_ptr] = find_alpha_cluster(unclustered_hits);
-          AlphaClusterHdl alpha_cluster = std::make_shared<AlphaCluster>(unclustered_hits, phi_min_ptr, phi_max_ptr);
+          auto [phi_min_ptr, phi_max_ptr] = find_delayed_cluster(unclustered_hits);
+          DelayedClusterHdl delayed_cluster = std::make_shared<DelayedCluster>(unclustered_hits, phi_min_ptr, phi_max_ptr);
           
-          precluster->get_clusters().push_back( alpha_cluster );
+          precluster->get_clusters().push_back( delayed_cluster );
           unclustered_hits.clear();
           
-          alpha_cluster->find_center();
-          find_reference_time_bounds(alpha_cluster);
-          estimate_alpha_track(alpha_cluster);
+          delayed_cluster->find_center();
+          find_reference_time_bounds(delayed_cluster);
+          estimate_delayed_track(delayed_cluster);
         }
         else
         {
@@ -2413,7 +2416,7 @@ namespace tkrec {
     }
   }
 
-  std::pair<double, double> Algos::find_alpha_cluster(const std::vector<ConstTrackerHitHdl> & hits)
+  std::pair<double, double> Algos::find_delayed_cluster(const std::vector<TrackerHitHdl> & hits)
   {
     
     //number of different values of phi among which the cluster is being searched for
@@ -2563,28 +2566,28 @@ namespace tkrec {
     {
       phi_min_out = phi_min;
       phi_max_out = phi_max;
-      DT_LOG_DEBUG(_config_.verbosity, "Alpha cluster found with " << cluster_hits.size() << " tracker hits and angular restriction: [" << phi_min_out << ", " << phi_max_out << "] rad");
+      DT_LOG_DEBUG(_config_.verbosity, "Delayed cluster found with " << cluster_hits.size() << " tracker hits and angular restriction: [" << phi_min_out << ", " << phi_max_out << "] rad");
     }
     return {phi_min_out, phi_max_out};
   }
   
   // estimates the possible range for the missing reference time
   // TODO this needs to be mooooore robust
-  void Algos::find_reference_time_bounds(AlphaClusterHdl alpha_cluster)
+  void Algos::find_reference_time_bounds(DelayedClusterHdl delayed_cluster)
   {
     const double min_possible_drift_time = _config_.alphas.min_possible_drift_time; // in nanoseconds
     const double max_possible_drift_time = _config_.alphas.max_possible_drift_time; // in nanoseconds
     
-    auto & tracker_hits = alpha_cluster->get_tracker_hits();
+    auto & tracker_hits = delayed_cluster->get_tracker_hits();
     
     std::sort(tracker_hits.begin(), tracker_hits.end(), 
                   [](const auto& hit1, const auto& hit2){ return hit1->get_delayed_time() < hit2->get_delayed_time(); });
                   
-    alpha_cluster->set_reference_time_min( tracker_hits.back()->get_delayed_time() - max_possible_drift_time );
-    alpha_cluster->set_reference_time_max( tracker_hits.front()->get_delayed_time() - min_possible_drift_time );
+    delayed_cluster->set_reference_time_min( tracker_hits.back()->get_delayed_time() - max_possible_drift_time );
+    delayed_cluster->set_reference_time_max( tracker_hits.front()->get_delayed_time() - min_possible_drift_time );
   }
     
-  void Algos::estimate_alpha_track(AlphaClusterHdl alpha_cluster)
+  void Algos::estimate_delayed_track(DelayedClusterHdl delayed_cluster)
   {
     const bool save_sinograms     = _config_.alphas.save_sinograms;
     const double initial_phi_step = _config_.alphas.phi_step;
@@ -2597,12 +2600,12 @@ namespace tkrec {
     const uint32_t iterations = 1;
     const double zoom_factor = 10.0;
     
-    double time_start = alpha_cluster->get_reference_time_min();
-    double time_end = alpha_cluster->get_reference_time_max();
+    double time_start = delayed_cluster->get_reference_time_min();
+    double time_end = delayed_cluster->get_reference_time_max();
     
-    auto & hits = alpha_cluster->get_tracker_hits(); 
-    double center_X = alpha_cluster->get_center_x();
-    double center_Y = alpha_cluster->get_center_y();
+    auto & hits = delayed_cluster->get_tracker_hits(); 
+    double center_X = delayed_cluster->get_center_x();
+    double center_Y = delayed_cluster->get_center_y();
 
     int time_iteration = 0; 
           
@@ -2613,15 +2616,15 @@ namespace tkrec {
     for(double time = time_end; time >= time_start; time -= time_step)
     {
       time_iteration++;
-      alpha_cluster->set_reference_time(time);
-      alpha_cluster->update_drift_radii();
+      delayed_cluster->set_reference_time(time);
+      delayed_cluster->update_drift_radii();
     
       // size of region (delta_phi x delta_R) to be investigated
-      double delta_phi = alpha_cluster->get_phi_max() - alpha_cluster->get_phi_min();
+      double delta_phi = delayed_cluster->get_phi_max() - delayed_cluster->get_phi_min();
       double delta_R = 2.0 * max_r;
 
       // peak_phi, peak_R store information about peak candidate
-      double peak_phi = (alpha_cluster->get_phi_min() + alpha_cluster->get_phi_max()) / 2.0;
+      double peak_phi = (delayed_cluster->get_phi_min() + delayed_cluster->get_phi_max()) / 2.0;
       double peak_R = 0.0;
       
       const uint32_t resolution_phi = delta_phi / (initial_phi_step * M_PI / 180.0);
@@ -2795,13 +2798,13 @@ namespace tkrec {
     
     double estimate_phi = best_phi;
     double estimate_r = best_R + center_X * std::sin(best_phi) - center_Y * std::cos(best_phi);
-    alpha_cluster->set_reference_time(best_ref_time);
-    alpha_cluster->update_drift_radii();
+    delayed_cluster->set_reference_time(best_ref_time);
+    delayed_cluster->update_drift_radii();
     
-    alpha_cluster->set_phi_estimate(estimate_phi);
-    alpha_cluster->set_r_estimate(estimate_r);
+    delayed_cluster->set_phi_estimate(estimate_phi);
+    delayed_cluster->set_r_estimate(estimate_r);
     
-    DT_LOG_DEBUG(_config_.verbosity, "Alpha track estimate: phi = " << estimate_phi << " rad, r = " << estimate_r << " mm");
+    DT_LOG_DEBUG(_config_.verbosity, "Delayed track estimate: phi = " << estimate_phi << " rad, r = " << estimate_r << " mm");
   }
   
 } //  end of namespace tkrec

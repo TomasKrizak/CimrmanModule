@@ -351,7 +351,7 @@ namespace tkrec {
         int side = cluster->hits().front()->get_side();	        
         bool prompt = cluster->hits().front()->is_prompt();
         
-        std::vector<ConstTrackerHitHdl> temp_precluster;
+        std::vector<TrackerHitHdl> temp_precluster;
         for(const auto & falaise_hit : cluster->hits())
         {
           DT_THROW_IF(falaise_hit->get_side() != side, std::logic_error, "Input cluster with hits on both sides");

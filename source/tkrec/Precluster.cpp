@@ -11,27 +11,34 @@
 
 namespace tkrec {
 
-  Precluster::Precluster(const std::vector<ConstTrackerHitHdl> & tracker_hits, bool _prompt, int _side)
+  Precluster::Precluster(const std::vector<TrackerHitHdl> & tracker_hits, bool _prompt, int _side)
     : Precluster()
   {
     DT_THROW_IF(tracker_hits.size() < 1, std::logic_error, "No tracker hits");
-    for(auto & tracker_hit : tracker_hits)
+    /*for(auto & tracker_hit : tracker_hits)
     {
       unclustered_tracker_hits.push_back(tracker_hit);    
-    }
+    }*/
+    
+    unclustered_tracker_hits = tracker_hits;
     prompt = _prompt;
     side = _side;
     return;
   }
 
-  std::vector<ConstTrackerHitHdl> & Precluster::get_unclustered_tracker_hits()
+  std::vector<TrackerHitHdl> & Precluster::get_unclustered_tracker_hits()
   {
     return unclustered_tracker_hits;
   }
 
-  const std::vector<ConstTrackerHitHdl> & Precluster::get_unclustered_tracker_hits() const
+  std::vector<ConstTrackerHitHdl> Precluster::get_unclustered_const_tracker_hits() const
   {
-    return unclustered_tracker_hits;
+    std::vector<ConstTrackerHitHdl> hits;
+    for (const auto & hit : unclustered_tracker_hits) 
+    {
+      hits.push_back(hit);
+    }
+    return hits;
   }
 
   std::vector<ClusterHdl> & Precluster::get_clusters()

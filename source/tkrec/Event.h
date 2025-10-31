@@ -63,7 +63,7 @@ namespace tkrec {
     void add_OM_hit(const OMHitHdl & OMhit);
     void add_tracker_hit(const TrackerHitHdl & trhit);
 
-    void add_precluster(const std::vector<ConstTrackerHitHdl> & tracker_hits, bool is_prompt, int side);
+    void add_precluster(const std::vector<TrackerHitHdl> & tracker_hits, bool is_prompt, int side);
 
     void print(std::ostream & out_ = std::clog) const;
 

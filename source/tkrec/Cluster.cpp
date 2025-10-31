@@ -11,7 +11,7 @@
 
 namespace tkrec {
 
-  Cluster::Cluster(const std::vector<ConstTrackerHitHdl> & _tracker_hits,
+  Cluster::Cluster(const std::vector<TrackerHitHdl> & _tracker_hits,
 		       double _phi_estimate,
 		       double _r_estimate)
     : Cluster()
@@ -24,14 +24,19 @@ namespace tkrec {
     return;
   }
 
-  std::vector<ConstTrackerHitHdl> & Cluster::get_tracker_hits()
+  std::vector<TrackerHitHdl> & Cluster::get_tracker_hits()
   {
     return tracker_hits;
   }
   
-  const std::vector<ConstTrackerHitHdl> & Cluster::get_tracker_hits() const 
+  const std::vector<ConstTrackerHitHdl> Cluster::get_const_tracker_hits() const 
   {
-    return tracker_hits;
+    std::vector<ConstTrackerHitHdl> hits;
+    for (const auto & hit : tracker_hits)
+    {
+      hits.push_back(hit);
+    }
+    return hits;
   }
 
   std::vector<LinearFitHdl> & Cluster::get_linear_fits()

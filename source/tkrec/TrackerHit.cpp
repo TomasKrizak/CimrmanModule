@@ -129,7 +129,7 @@ namespace tkrec {
   {
     y = _y;
   }
-  void TrackerHit::set_R(double _R) const
+  void TrackerHit::set_R(double _R)
   {
     R = _R;
   }
@@ -139,7 +139,7 @@ namespace tkrec {
     Z = _Z;
   }
   
-  void TrackerHit::set_sigma_R(double _sigma_R) const
+  void TrackerHit::set_sigma_R(double _sigma_R)
   {
     sigma_R = _sigma_R;
   }
@@ -149,7 +149,7 @@ namespace tkrec {
     sigma_Z = _sigma_Z;
   }
 
-  void TrackerHit::set_valid_R() const
+  void TrackerHit::set_valid_R()
   {
     valid_R = true;
   }
@@ -159,7 +159,7 @@ namespace tkrec {
     valid_Z = true;
   }
   
-  void TrackerHit::set_invalid_R() const
+  void TrackerHit::set_invalid_R()
   {
     valid_R = false;
   }
@@ -179,7 +179,7 @@ namespace tkrec {
   	prompt_hit = true;
   }
 
-  void TrackerHit::update_drift_radius(double drift_time) const
+  void TrackerHit::update_drift_radius(double drift_time)
   {
     const double time_usec = drift_time / 1000.0;
     const double _tracker_drift_model_manu_params_[5] = {0.263223, -0.030965, -0.571594, 6.01392e-02, 1.13142e+03};
