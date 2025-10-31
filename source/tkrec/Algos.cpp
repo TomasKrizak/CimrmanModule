@@ -21,11 +21,11 @@
 
 namespace tkrec {
  
-  EventRecMode event_recmode_from_label(const std::string & label_)
+  ElectronRecMode electron_recmode_from_label(const std::string & label_)
   {
-    if (label_ == "electron_kinked") return EventRecMode::electron_kinked;
-    if (label_ == "electron_straight") return EventRecMode::electron_straight;
-    return EventRecMode::undefined;
+    if (label_ == "polyline") return ElectronRecMode::polyline;
+    if (label_ == "line") return ElectronRecMode::line;
+    return ElectronRecMode::undefined;
   }
  
   void CimrmanAlgoConfig::parse(const datatools::properties & config_)
@@ -39,21 +39,29 @@ namespace tkrec {
       this->verbosity = parsedVerb;
     }
 
-    if (config_.has_key("mode")) {
-      std::string evRecModeLabel = config_.fetch_string("mode");
-      auto evRecMode = event_recmode_from_label(evRecModeLabel);
-      DT_THROW_IF(evRecMode == EventRecMode::undefined,
+    if (config_.has_key("electron_mode")) {
+      std::string elRecModeLabel = config_.fetch_string("electron_mode");
+      auto elRecMode = electron_recmode_from_label(elRecModeLabel);
+      DT_THROW_IF(elRecMode == ElectronRecMode::undefined,
                   std::logic_error,
-                  "Undefined event reconstruction mode " << std::quoted(evRecModeLabel));
-      this->mode = evRecMode;
+                  "Undefined event reconstruction mode " << std::quoted(elRecModeLabel));
+      this->electron_mode = elRecMode;
     }
     
-    if (config_.has_flag("visualization")) {
-      this->visualization = true;
+    if (config_.has_flag("visualization_2D")) {
+      this->visualization_2D = true;
     }
-  
-    if (config_.has_flag("save_sinograms")) {
-      this->save_sinograms = true;
+    
+    if (config_.has_flag("visualization_3D")) {
+      this->visualization_3D = true;
+    }
+    
+    if (config_.has_flag("use_provided_preclustering")) {
+      this->use_provided_preclustering = true;
+    }
+    
+    if (config_.has_flag("reconstruct_alphas")) {
+      this->reconstruct_alphas = true;
     }
   
     if (config_.has_flag("force_default_sigma_r")) {
@@ -69,50 +77,54 @@ namespace tkrec {
       this->default_sigma_r = value / CLHEP::mm;
     }
   
-    if (config_.has_key("clustering_max_distance")) {
-      this->clustering_max_distance =
-        config_.fetch_real_with_explicit_dimension("clustering_max_distance", 
+    if (config_.has_flag("clustering.save_sinograms")) {
+      this->clustering.save_sinograms = true;
+    }
+  
+    if (config_.has_key("clustering.max_distance")) {
+      this->clustering.max_distance =
+        config_.fetch_real_with_explicit_dimension("clustering.max_distance", 
                                                    "length");
-      DT_THROW_IF(this->clustering_max_distance < 44.0 * CLHEP::mm,
+      DT_THROW_IF(this->clustering.max_distance < 44.0 * CLHEP::mm,
 		  std::logic_error,
-		  "Invalid clustering_max_distance value");
+		  "Invalid clustering.max_distance value");
     }
 
-    if (config_.has_key("clustering_hit_association_distance")) {
-      this->clustering_hit_association_distance =
-        config_.fetch_real_with_explicit_dimension("clustering_hit_association_distance",
+    if (config_.has_key("clustering.hit_association_distance")) {
+      this->clustering.hit_association_distance =
+        config_.fetch_real_with_explicit_dimension("clustering.hit_association_distance",
                                                    "length");
     }
     
-    if (config_.has_key("clustering_no_iterations")) {
-      this->clustering_no_iterations =
-        config_.fetch_integer_scalar("clustering_no_iterations"); //??
+    if (config_.has_key("clustering.no_iterations")) {
+      this->clustering.no_iterations =
+        config_.fetch_integer_scalar("clustering.no_iterations"); //??
     }
     
-    if (config_.has_key("clustering_resolution_phi")) {
-      this->clustering_resolution_phi =
-        config_.fetch_integer_scalar("clustering_resolution_phi"); //??
+    if (config_.has_key("clustering.resolution_phi")) {
+      this->clustering.resolution_phi =
+        config_.fetch_integer_scalar("clustering.resolution_phi"); //??
     }
     
-    if (config_.has_key("clustering_resolution_r")) {
-      this->clustering_resolution_r =
-        config_.fetch_integer_scalar("clustering_resolution_r"); // fetch_integer_scalar??
+    if (config_.has_key("clustering.resolution_r")) {
+      this->clustering.resolution_r =
+        config_.fetch_integer_scalar("clustering.resolution_r"); // fetch_integer_scalar??
     }
 
-    if (config_.has_key("clustering_max_initial_precision_r")) {
-      this->clustering_max_initial_precision_r =
-        config_.fetch_real_with_explicit_dimension("clustering_max_initial_precision_r",
+    if (config_.has_key("clustering.max_initial_precision_r")) {
+      this->clustering.max_initial_precision_r =
+        config_.fetch_real_with_explicit_dimension("clustering.max_initial_precision_r",
                                                    "length");
     }
     
-    if (config_.has_key("clustering_zoom_factor")) {
-      this->clustering_zoom_factor =
-        config_.fetch_dimensionless_real("clustering_zoom_factor");
+    if (config_.has_key("clustering.zoom_factor")) {
+      this->clustering.zoom_factor =
+        config_.fetch_dimensionless_real("clustering.zoom_factor");
     }
     
-    if (config_.has_key("clustering_uncertainty")) {
-      this->clustering_uncertainty =
-        config_.fetch_real_with_explicit_dimension("clustering_uncertainty",
+    if (config_.has_key("clustering.uncertainty")) {
+      this->clustering.uncertainty =
+        config_.fetch_real_with_explicit_dimension("clustering.uncertainty",
                                                    "length");
     }
     
@@ -124,74 +136,142 @@ namespace tkrec {
 		  "Invalid chi_square_threshold value");
     }
     
-    if (config_.has_key("polylines_max_vertical_distance")) {
-      this->polylines_max_vertical_distance =
-        config_.fetch_real_with_explicit_dimension("polylines_max_vertical_distance",
+    if (config_.has_key("polylines.max_vertical_distance")) {
+      this->polylines.max_vertical_distance =
+        config_.fetch_real_with_explicit_dimension("polylines.max_vertical_distance",
                                                    "length");
-      DT_THROW_IF(this->polylines_max_vertical_distance < 0.0 * CLHEP::mm,
+      DT_THROW_IF(this->polylines.max_vertical_distance < 0.0 * CLHEP::mm,
 		  std::logic_error,
-		  "Invalid polylines_max_vertical_distance value");
+		  "Invalid polylines.max_vertical_distance value");
     }
     
-    if (config_.has_key("polylines_max_extention_distance")) {
-      this->polylines_max_extention_distance =
-        config_.fetch_real_with_explicit_dimension("polylines_max_extention_distance",
+    if (config_.has_key("polylines.max_extention_distance")) {
+      this->polylines.max_extention_distance =
+        config_.fetch_real_with_explicit_dimension("polylines.max_extention_distance",
                                                    "length");
-      DT_THROW_IF(this->polylines_max_extention_distance < 0.0,
+      DT_THROW_IF(this->polylines.max_extention_distance < 0.0 * CLHEP::mm,
 		  std::logic_error,
-		  "Invalid polylines_max_extention_distance value");
+		  "Invalid polylines.max_extention_distance value");
     }
     
-    if (config_.has_key("polylines_min_tracker_hits_distance")) {
-      this->polylines_min_tracker_hits_distance =
-        config_.fetch_real_with_explicit_dimension("polylines_min_tracker_hits_distance",
+    if (config_.has_key("polylines.min_tracker_hits_distance")) {
+      this->polylines.min_tracker_hits_distance =
+        config_.fetch_real_with_explicit_dimension("polylines.min_tracker_hits_distance",
                                                    "length");
-      DT_THROW_IF(this->polylines_min_tracker_hits_distance < 0.0,
+      DT_THROW_IF(this->polylines.min_tracker_hits_distance < 0.0 * CLHEP::mm,
 		  std::logic_error,
-		  "Invalid polylines_min_tracker_hits_distance value");
+		  "Invalid polylines.min_tracker_hits_distance value");
     }
     
-    if (config_.has_key("polylines_max_kink_angle")) {
-      this->polylines_max_kink_angle =
-        config_.fetch_dimensionless_real("polylines_max_kink_angle");
-      DT_THROW_IF(this->polylines_max_kink_angle < 0.0 || this->polylines_max_kink_angle > 180.0,
+    if (config_.has_key("polylines.max_kink_angle")) {
+      this->polylines.max_kink_angle =
+        config_.fetch_dimensionless_real("polylines.max_kink_angle");
+      DT_THROW_IF(this->polylines.max_kink_angle < 0.0 || this->polylines.max_kink_angle > 180.0,
 		  std::logic_error,
-		  "Invalid polylines_max_kink_angle value");
+		  "Invalid polylines.max_kink_angle value");
     }
     
-    if (config_.has_key("polylines_max_trajectories_middlepoint_distance")) {
-      this->polylines_max_trajectories_middlepoint_distance =
-        config_.fetch_real_with_explicit_dimension("polylines_max_trajectories_middlepoint_distance",
+    if (config_.has_key("polylines.max_trajectories_middlepoint_distance")) {
+      this->polylines.max_trajectories_middlepoint_distance =
+        config_.fetch_real_with_explicit_dimension("polylines.max_trajectories_middlepoint_distance",
                                                    "length");
-      DT_THROW_IF(this->polylines_max_trajectories_middlepoint_distance < 0.0,
+      DT_THROW_IF(this->polylines.max_trajectories_middlepoint_distance < 0.0,
 		  std::logic_error,
-		  "Invalid polylines_max_trajectories_middlepoint_distance value");
+		  "Invalid polylines.max_trajectories_middlepoint_distance value");
     }
     
-    if (config_.has_key("polylines_max_trajectory_endpoints_distance")) {
-      this->polylines_max_trajectory_endpoints_distance =
-        config_.fetch_real_with_explicit_dimension("polylines_max_trajectory_endpoints_distance",
+    if (config_.has_key("polylines.max_trajectory_endpoints_distance")) {
+      this->polylines.max_trajectory_endpoints_distance =
+        config_.fetch_real_with_explicit_dimension("polylines.max_trajectory_endpoints_distance",
                                                    "length");
-      DT_THROW_IF(this->polylines_max_trajectory_endpoints_distance < 0.0,
+      DT_THROW_IF(this->polylines.max_trajectory_endpoints_distance < 0.0 * CLHEP::mm,
 		  std::logic_error,
-		  "Invalid polylines_max_trajectory_endpoints_distance value");
+		  "Invalid polylines.max_trajectory_endpoints_distance value");
     }
     
-    if (config_.has_key("polylines_max_trajectory_connection_angle")) {
-      this->polylines_max_trajectory_connection_angle =
-        config_.fetch_dimensionless_real("polylines_max_trajectory_connection_angle");
-      DT_THROW_IF(this->polylines_max_trajectory_connection_angle < 0.0 || this->polylines_max_trajectory_connection_angle > 180.0,
+    if (config_.has_key("polylines.max_trajectory_connection_angle")) {
+      this->polylines.max_trajectory_connection_angle =
+        config_.fetch_dimensionless_real("polylines.max_trajectory_connection_angle");
+      DT_THROW_IF(this->polylines.max_trajectory_connection_angle < 0.0 || this->polylines.max_trajectory_connection_angle > 180.0,
 		  std::logic_error,
-		  "Invalid polylines_max_trajectory_connection_angle value");
+		  "Invalid polylines.max_trajectory_connection_angle value");
     }
     
-    if (config_.has_key("polylines_min_distance_from_foil")) {
-      this->polylines_min_distance_from_foil =
-        config_.fetch_real_with_explicit_dimension("polylines_min_distance_from_foil",
+    if (config_.has_key("polylines.min_distance_from_foil")) {
+      this->polylines.min_distance_from_foil =
+        config_.fetch_real_with_explicit_dimension("polylines.min_distance_from_foil",
                                                    "length");
-      DT_THROW_IF(this->polylines_min_distance_from_foil < 0.0,
+      DT_THROW_IF(this->polylines.min_distance_from_foil < 0.0 * CLHEP::mm,
 		  std::logic_error,
-		  "Invalid polylines_min_distance_from_foil value");   
+		  "Invalid polylines.min_distance_from_foil value");   
+    }
+    
+    if (config_.has_key("alphas.clustering_resolution_phi")) {
+      this->alphas.clustering_resolution_phi =
+        config_.fetch_integer_scalar("alphas.clustering_resolution_phi"); //??
+    }
+    
+    if (config_.has_flag("alphas.save_sinograms")) {
+      this->alphas.save_sinograms = true;
+    }
+    
+     if (config_.has_key("alphas.phi_step")) {
+      this->alphas.phi_step =
+        config_.fetch_dimensionless_real("alphas.phi_step");
+        
+      DT_THROW_IF(this->alphas.phi_step < 0.05, std::logic_error,
+		  "Invalid alphas.phi_step value - too small");
+    }
+    
+    if (config_.has_key("alphas.max_r")) {
+      this->alphas.max_r =
+        config_.fetch_real_with_explicit_dimension("alphas.max_r",
+                                                   "length");
+      DT_THROW_IF(this->alphas.max_r < 0.0 * CLHEP::mm,
+		  std::logic_error,
+		  "Invalid alphas.max_r value");   
+    }
+    
+    if (config_.has_key("alphas.resolution_r")) {
+      this->alphas.resolution_r =
+        config_.fetch_integer_scalar("alphas.resolution_r"); //??
+    }
+    
+    if (config_.has_key("alphas.time_step")) {
+      this->alphas.time_step =
+        config_.fetch_real_with_explicit_dimension("alphas.time_step",
+                                                   "time");
+      DT_THROW_IF(this->alphas.time_step < 10.0 * CLHEP::nm,
+		  std::logic_error,
+		  "Invalid alphas.time_step value - too small steps");   
+    }
+    
+    if (config_.has_key("alphas.uncertainty")) {
+      this->alphas.uncertainty =
+        config_.fetch_real_with_explicit_dimension("alphas.uncertainty",
+                                                   "length");
+      DT_THROW_IF(this->alphas.uncertainty < 0.0 * CLHEP::mm,
+		  std::logic_error,
+		  "Invalid alphas.uncertainty value");   
+    }
+    
+    if (config_.has_key("alphas.max_possible_drift_time")) {
+      this->alphas.max_possible_drift_time =
+        config_.fetch_real_with_explicit_dimension("alphas.max_possible_drift_time",
+                                                   "time");
+		  
+		  DT_THROW_IF(this->alphas.max_possible_drift_time < 100.0 * CLHEP::nm,
+		  std::logic_error,
+		  "Invalid alphas.max_possible_drift_time value - too strict");   
+    }
+    
+    if (config_.has_key("alphas.min_possible_drift_time")) {
+      this->alphas.min_possible_drift_time =
+        config_.fetch_real_with_explicit_dimension("alphas.min_possible_drift_time",
+                                                   "time");
+      DT_THROW_IF(this->alphas.min_possible_drift_time < 0.0 * CLHEP::nm,
+		  std::logic_error,
+		  "Invalid alphas.min_possible_drift_time value - negative time");   
     }
     
     return;
@@ -227,23 +307,23 @@ namespace tkrec {
 
   bool Algos::is_initialized() const
   {
-    return _config_.mode != EventRecMode::undefined;
+    return _config_.electron_mode != ElectronRecMode::undefined;
   }
   
-  void Algos::initialize(const CimrmanAlgoConfig & evrecconf_)
+  void Algos::initialize(const CimrmanAlgoConfig & elrecconf_)
   {
-    _config_ = evrecconf_;
-    DT_THROW_IF(_config_.mode == EventRecMode::undefined,
+    _config_ = elrecconf_;
+    DT_THROW_IF(_config_.electron_mode == ElectronRecMode::undefined,
                 std::logic_error,
                 "Undefined reconstruction mode");
 
-    if (_config_.visualization) {
+    if (_config_.visualization_2D || _config_.visualization_3D){
       _visu_ = std::make_unique<Visu>(_geom_);
     }
     
     return;
   }
-  
+
   void Algos::reset()
   {
     _event_ = nullptr;
@@ -255,62 +335,82 @@ namespace tkrec {
   {
     set_event(event_);
     
-    // common preclustering to identify identify prompt and delayed preclusters and distant groups of tracker hits
-    precluster();
-     
-    // electron reconstruction (creates prompt precluster solutions)
-    if (_config_.mode == EventRecMode::electron_kinked) {
-      DT_LOG_DEBUG(_config_.verbosity, "Processing 'electron polyline reconstruction' mode...");
-      _process_electron_kinked_();
-    } else if (_config_.mode == EventRecMode::electron_straight) {
-      DT_LOG_DEBUG(_config_.verbosity, "Processing 'electron line reconstruction' mode...");
-      _process_electron_straight_();
+    // step 1
+    // preclustering to identify identify prompt and delayed preclusters and 
+    // distant groups of tracker hits in case that provided TCD was not used
+    if( _event_->get_preclusters().empty() )
+    {
+      DT_LOG_DEBUG(_config_.verbosity, "Step 1: Preclustering");
+      precluster();
     }
-	
-	  // alpha reconstruction (creates delayed precluster solutions)
-    if (_config_.reconstruct_alphas) {
-      DT_LOG_DEBUG(_config_.verbosity, "Processing 'alpha reconstruction' mode...");
-      _process_alpha_();
-    } 
-  
-    // combines prompt and delayed precluster solutions into common solutions
+    else
+    {
+      DT_LOG_DEBUG(_config_.verbosity, "Skipping Step 1: Preclustering - TCD bank provided");
+    }
+    
+    // step 2
+    // prompt tracker hit clustering 
+    DT_LOG_DEBUG(_config_.verbosity, "Step 2: Prompt tracker hit clustering");
+    Legendre_transform_clustering();
+    
+    // delayed tracker hit clustering
+    if (_config_.reconstruct_alphas)
+    {
+      DT_LOG_DEBUG(_config_.verbosity, "Step 2: Delayed tracker hit clustering");
+      alpha_clustering(); 
+    }
+
+    // step 3
+    DT_LOG_DEBUG(_config_.verbosity, "Step 3: MLM line fitting + ambiguity checking and solving");
+    make_MLM_fits();
+    
+    // step 4
+    DT_LOG_DEBUG(_config_.verbosity, "Step 4: Linear fits are associated to tracker hits and combined into a precluster solutions");
+    combine_into_precluster_solutions();
+    
+    // step 5    
+    if (_config_.electron_mode == ElectronRecMode::polyline)
+    {
+      DT_LOG_DEBUG(_config_.verbosity, "Step 5: Kink finding and connecting into polyline trajectories (electron trajectories)");
+      create_polyline_trajectories();
+    }
+    else if (_config_.electron_mode == ElectronRecMode::line)
+    {
+      DT_LOG_DEBUG(_config_.verbosity, "Step 5: Creating line trajectories (electron trajectories)");
+      create_line_trajectories( electron );      
+    }
+    
+    if (_config_.reconstruct_alphas)
+    {
+       DT_LOG_DEBUG(_config_.verbosity, "Step 5: Creating line trajectories (alpha trajectories)");
+      create_line_trajectories( alpha );
+    }
+
+    // step 6
+    DT_LOG_DEBUG(_config_.verbosity, "Step 6: Trajectory refinement");
+    refine_trajectories();
+
+    // step 7
+    DT_LOG_DEBUG(_config_.verbosity, "Step 7: Combining precluster solutions into all solutions");
     create_solutions();
 
-    if (_visu_) {
-      _visu_->make_top_projection();
-      _visu_->build_event();
+    if (_visu_)
+    {
+      if(_config_.visualization_2D)
+      {
+        DT_LOG_DEBUG(_config_.verbosity, "Creating and saving 2D visualizations");
+        _visu_->make_top_projection();
+      }
+      
+      if(_config_.visualization_3D)
+      {
+        DT_LOG_DEBUG(_config_.verbosity, "Creating and saving 3D visualizations");
+        _visu_->build_event();
+      }
     }
     return;
   }
 
-  void Algos::_process_electron_kinked_()
-  {
-    Legendre_transform_clustering();
-    make_MLM_fits();
-    combine_into_precluster_solutions();
-    create_polyline_trajectories();
-    refine_trajectories();
-    return;
-  }
-  
-  void Algos::_process_electron_straight_()
-  {
-    Legendre_transform_clustering();
-    make_MLM_fits();
-    combine_into_precluster_solutions();
-    create_line_trajectories();
-    //refine_trajectories();
-    return;
-  }
-
-  void Algos::_process_alpha_()
-  {
-    // alpha_track_finder();
-    // combine_into_precluster_solutions();
-    // create_line_trajectories();
-    return;
-  }
-  
   
 //____________________________________________________________________________
 //////////////////////////////////////////////////////////////////////////////
@@ -332,7 +432,7 @@ namespace tkrec {
       {
         if(!hit->has_valid_R())
         {
-         continue;        
+          continue;        
         }
         
         switch(hit->get_SRL()[0])
@@ -345,6 +445,7 @@ namespace tkrec {
           break;
         }
       }
+      
       else 
       {
         switch(hit->get_SRL()[0])
@@ -361,21 +462,25 @@ namespace tkrec {
     
     // additional spatial clustering 
     std::vector<std::vector<ConstTrackerHitHdl>> temp_preclusters = separate_hits(prompt_hits_side0);
+    DT_LOG_DEBUG(_config_.verbosity, "Prompt preclusters on side 0: " << temp_preclusters.size());
     for(auto & prec : temp_preclusters)
     {
       _event_->add_precluster(prec, true, 0);
     }
     temp_preclusters = separate_hits(prompt_hits_side1);
+    DT_LOG_DEBUG(_config_.verbosity, "Prompt preclusters on side 1: " << temp_preclusters.size());
     for(auto & prec : temp_preclusters)
     {
        _event_->add_precluster(prec, true, 1);
     }
     temp_preclusters = separate_hits(delayed_hits_side0);    
+    DT_LOG_DEBUG(_config_.verbosity, "Delayed preclusters on side 0: " << temp_preclusters.size());
     for(auto & prec : temp_preclusters)
     {
       _event_->add_precluster(prec, false, 0);
     }
     temp_preclusters = separate_hits(delayed_hits_side1);
+    DT_LOG_DEBUG(_config_.verbosity, "Delayed preclusters on side 1: " << temp_preclusters.size());
     for(auto & prec : temp_preclusters)
     {
        _event_->add_precluster(prec, false, 1);
@@ -384,10 +489,10 @@ namespace tkrec {
     return;
   }
   
-   void depth_first_search(int node, 
-											   const std::vector<std::vector<int>> & adjacency, 
-											   std::vector<bool> & visited, 
-											   std::vector<int> & cluster_indices)
+  void depth_first_search(int node, 
+				   const std::vector<std::vector<int>> & adjacency, 
+				   std::vector<bool> & visited, 
+				   std::vector<int> & cluster_indices)
   {
     std::stack<int> stack;
     stack.push(node);
@@ -399,12 +504,12 @@ namespace tkrec {
       stack.pop();
       cluster_indices.push_back(current);
 
-      for(int neighbor : adjacency[current])
+      for(int neighbour : adjacency[current])
       {
-        if(!visited[neighbor])
+        if(!visited[neighbour])
         {
-          visited[neighbor] = true;
-          stack.push(neighbor);
+          visited[neighbour] = true;
+          stack.push(neighbour);
         }
       }
     }
@@ -414,7 +519,7 @@ namespace tkrec {
   std::vector<std::vector<ConstTrackerHitHdl>> Algos::separate_hits(const std::vector<ConstTrackerHitHdl> & hits)
   {
 
-    const double distance_treshold = _config_.clustering_max_distance;
+    const double distance_treshold = _config_.clustering.max_distance;
     const size_t n = hits.size();
 
     // building adjacency graph
@@ -473,15 +578,14 @@ namespace tkrec {
     for(auto & precluster : _event_->get_preclusters())
     {
       // clusterizes separatelly every prompt precluster
-      if( precluster->is_prompt() )
-      {        
-        std::vector<ConstTrackerHitHdl> & unclustered_hits = precluster->get_unclustered_tracker_hits(); 
-        std::vector<ClusterHdl> & clusters = precluster->get_clusters();
+      if( precluster->is_delayed() ) continue;
+     
+      std::vector<ConstTrackerHitHdl> & unclustered_hits = precluster->get_unclustered_tracker_hits(); 
+      std::vector<ClusterHdl> & clusters = precluster->get_clusters();
 
-        // recursively applies Legendre transform and spatial clustering to find linear clusters
-        // creates clusters and removes its tracker hits from "unclustered_hits"
-        clusterize_precluster(unclustered_hits, clusters);
-      }
+      // recursively applies Legendre transform and spatial clustering to find linear clusters
+      // creates clusters and removes its tracker hits from "unclustered_hits"
+      clusterize_precluster(unclustered_hits, clusters);
     }
     return;
   }
@@ -490,7 +594,7 @@ namespace tkrec {
   {
     if( tracker_hits.size() < 3u ) return;
     
-    const double association_distance = _config_.clustering_hit_association_distance;
+    const double association_distance = _config_.clustering.hit_association_distance;
     
     // Legendre transform on hits to find phi and r candidates
     double phi_estimate, r_estimate;
@@ -523,7 +627,7 @@ namespace tkrec {
       if(j == largest && sub_clusters[j].size() > 2u)
       {
         // create and add new cluster to the precluster
-        ClusterHdl cluster = std::make_shared<Cluster>( sub_clusters[j], phi_estimate, r_estimate, false );
+        ClusterHdl cluster = std::make_shared<Cluster>( sub_clusters[j], phi_estimate, r_estimate );
         clusters.push_back( cluster );
         cluster_found = true;
       }
@@ -568,7 +672,7 @@ namespace tkrec {
       }
       else
       {
-        ++it;
+        it++;
       }
     }
     return;
@@ -586,13 +690,13 @@ namespace tkrec {
   // find_cluster_Legendre is the core function of the entire tracking and the most time expensive function (vast majority of runtime is spend here)
   void Algos::find_cluster_Legendre(const std::vector<ConstTrackerHitHdl> & hits, double & phi_estimate, double & r_estimate) const
   {
-    const bool save_sinograms     = _config_.save_sinograms;
-    const double zoom_factor      = _config_.clustering_zoom_factor;
-    const uint32_t iterations     = _config_.clustering_no_iterations;
-    const uint32_t resolution_phi = _config_.clustering_resolution_phi;
-    const uint32_t resolution_r   = _config_.clustering_resolution_r;
-    const double max_precision_r  = _config_.clustering_max_initial_precision_r;
-    const double sigma            = _config_.clustering_uncertainty;
+    const bool save_sinograms     = _config_.clustering.save_sinograms;
+    const double zoom_factor      = _config_.clustering.zoom_factor;
+    const uint32_t iterations     = _config_.clustering.no_iterations;
+    const uint32_t resolution_phi = _config_.clustering.resolution_phi;
+    const uint32_t resolution_r   = _config_.clustering.resolution_r;
+    const double max_precision_r  = _config_.clustering.max_initial_precision_r;
+    const double sigma            = _config_.clustering.uncertainty;
 
     // TODO: think through the precision logic
     //int resolution_r = std::min(int(delta_R / max_precision_r), resolution_r);
@@ -798,24 +902,21 @@ namespace tkrec {
     for(auto & precluster : _event_->get_preclusters())
     {
       // fits every prompt cluster
-      if( precluster->is_prompt() )
-      {
-        for(auto & cluster : precluster->get_clusters())
+      for(auto & cluster : precluster->get_clusters())
+      { 
+        // LinearFit object is created (with phi_estimate, r_estimate)
+        LinearFitHdl primary_fit = std::make_shared<LinearFit>(cluster);
+     		cluster->get_linear_fits().push_back(primary_fit);
+        
+        // check and detects the type of ambiguity of a cluster
+        detect_ambiguity_type(cluster);
+        
+        // creates mirror fit obejct in case of ambiguous clusters with its own likelihood support structure
+        create_mirror_fit(cluster);
+        // for both fits (in case of ambiguity) finds ML estimate for (phi, r, theta, h)       
+        for(auto & fit : cluster->get_linear_fits()) 
         {
-          // LinearFit object is created (with phi_estimate, r_estimate)
-          LinearFitHdl primary_fit = std::make_shared<LinearFit>(cluster);
-       		cluster->get_linear_fits().push_back(primary_fit);
-       
-          // check and detects the type of ambiguity of a cluster
-          detect_ambiguity_type(cluster);
-          
-          // creates mirror fit obejct in case of ambiguous clusters with its own likelihood support structure
-          create_mirror_fit(cluster);
-          // for both fits (in case of ambiguity) finds ML estimate for (phi, r, theta, h)       
-          for(auto & fit : cluster->get_linear_fits()) 
-          {
-            make_ML_estimate(fit);
-          }
+          make_ML_estimate(fit);
         }
       }
     }
@@ -1120,11 +1221,23 @@ namespace tkrec {
 //////////////////////////////////////////////////////////////////////////////
   
   // master function of step 5 (straight track mode): Track -> non-kinked Trajectories
-  void Algos::create_line_trajectories()
-  {
+  void Algos::create_line_trajectories(TrajectoryType type)
+  {    
     // proccess is done separately for each precluster
     for(auto & precluster : _event_->get_preclusters())
     {
+      switch(type)
+      {
+        case electron:
+          if(precluster->is_delayed()) continue;    
+          break;
+        case alpha:
+          if(precluster->is_prompt()) continue;
+          break;
+        case both:
+          break;
+      }
+      
       // also separately for each precluster solution
       for(auto & precluster_solution : precluster->get_precluster_solutions())
       {
@@ -1149,6 +1262,8 @@ namespace tkrec {
     // proccess is done separately for each precluster
     for(auto & precluster : _event_->get_preclusters())
     {
+      if(precluster->is_delayed()) continue;
+      
       // also separately for each precluster solution
       for(auto & precluster_solution : precluster->get_precluster_solutions())
       {
@@ -1201,9 +1316,9 @@ namespace tkrec {
   
   std::vector<std::vector<TrackHdl>> Algos::find_polyline_candidates(std::vector<TrackHdl> & tracks, const int side) const
   {
-    const double vertical_threshold = _config_.polylines_max_vertical_distance;
-    const double min_distance = _config_.polylines_min_tracker_hits_distance;
-    const double min_distance_from_foil = _config_.polylines_min_distance_from_foil;
+    const double vertical_threshold = _config_.polylines.max_vertical_distance;
+    const double min_distance = _config_.polylines.min_tracker_hits_distance;
+    const double min_distance_from_foil = _config_.polylines.min_distance_from_foil;
   
     std::vector<std::vector<TrackHdl>> trajectory_candidates;
     int no_tracks = (int)tracks.size();
@@ -1396,7 +1511,7 @@ namespace tkrec {
   {
     DT_THROW_IF(trajectory->get_segments().size() < 2, std::logic_error, "No polyline trajectory for creating trajectory points");
     
-    const double max_angle = _config_.polylines_max_kink_angle; 
+    const double max_angle = _config_.polylines.max_kink_angle; 
     
     std::vector<PointHdl> & tr_points = trajectory->get_trajectory_points();
     std::vector<TrackHdl> & segments = trajectory->get_segments();
@@ -1584,34 +1699,41 @@ namespace tkrec {
   //  - clustering refinement, trajectory connecting, fit quality calculation
   //  - Potentially maximum likelihood refinement of the polyline fits...
   void Algos::refine_trajectories()
-  {
-  	// proccess is done separately for each precluster
+  { 
+  	// refining electron tracks
     for(auto & precluster : _event_->get_preclusters())
     {
-      // also separately for each precluster solution
+      if(precluster->is_prompt())
+      {
+        // also separately for each precluster solution
+        for(auto & precluster_solution : precluster->get_precluster_solutions())
+        {
+          for(auto & trajectory : precluster_solution->get_trajectories())
+          {
+            // polyline trajectories are handled differently
+            if(trajectory->has_kink())
+            {
+              remove_wrong_hits_associations(precluster_solution, trajectory);
+            }
+          }
+          // trying to add unclustered tracker hits to existing trajectories
+          refine_clustering(precluster_solution);
+          connect_close_trajectories(precluster_solution);
+          
+          // created connection changes the association points -> needs to be updated
+          for(auto & trajectory : precluster_solution->get_trajectories())
+          {
+            if(trajectory->has_kink())
+            {
+              trajectory->update_segments();
+            }
+          }
+        }
+      }
+      
+      // evaluating electron and alpha tracks
       for(auto & precluster_solution : precluster->get_precluster_solutions())
       {
-        for(auto & trajectory : precluster_solution->get_trajectories())
-        {
-          // polyline trajectories are handled differently
-          if(trajectory->has_kink())
-          {
-            remove_wrong_hits_associations(precluster_solution, trajectory);
-          }
-        }
-        // trying to add unclustered tracker hits to existing trajectories
-        refine_clustering(precluster_solution);
-        connect_close_trajectories(precluster_solution);
-        
-        // created connection changes the association points -> needs to be updated
-        for(auto & trajectory : precluster_solution->get_trajectories())
-        {
-          if(trajectory->has_kink())
-          {
-            trajectory->update_segments();
-          }
-        }
-        
         // calculating all fit quality metrics
         for(auto & trajectory : precluster_solution->get_trajectories())
         {
@@ -1721,7 +1843,6 @@ namespace tkrec {
     return;
   }
   
-  
   Point get_middle_point(const Point & point1, const Point & point2)
   {
     Point middle_point;
@@ -1729,15 +1850,14 @@ namespace tkrec {
     middle_point.y = (point1.y + point2.y) / 2.0;
     middle_point.z = (point1.z + point2.z) / 2.0;
     return middle_point;
-  } 
-  
+  }   
   
   // connecting very close trajectories with small angles
   void Algos::connect_close_trajectories(PreclusterSolutionHdl & precluster_solution)
   {
-    const double distance_threshold = _config_.polylines_max_trajectories_middlepoint_distance;
-    const double trajectory_connection_distance = _config_.polylines_max_trajectory_endpoints_distance;
-    const double max_angle = _config_.polylines_max_trajectory_connection_angle;
+    const double distance_threshold = _config_.polylines.max_trajectories_middlepoint_distance;
+    const double trajectory_connection_distance = _config_.polylines.max_trajectory_endpoints_distance;
+    const double max_angle = _config_.polylines.max_trajectory_connection_angle;
     auto i = 0u;
     auto & trajectories = precluster_solution->get_trajectories(); 
     while(i < trajectories.size())
@@ -1927,7 +2047,7 @@ namespace tkrec {
   void Algos::remove_wrong_hits_associations(PreclusterSolutionHdl & precluster_solution, TrajectoryHdl & trajectory)
   {
     // tolerance primarily for comparing two doubles 
-    const double tolerance = 0.01;
+    const double numerical_tolerance = 0.01;
     
     std::vector<TrackHdl> & segments = trajectory->get_segments();
     std::vector<PointHdl> & traj_points = trajectory->get_trajectory_points();
@@ -1952,7 +2072,7 @@ namespace tkrec {
         
         double t_j = associations[j].parameter_t;
         // checking if the point is in bounds of its segments (correct association)
-        if( (t_start <= t_j + tolerance) && (t_j - tolerance <= t_end) ) 
+        if( (t_start <= t_j + numerical_tolerance) && (t_j - numerical_tolerance <= t_end) ) 
         {
           ++j;
           continue;
@@ -1971,8 +2091,8 @@ namespace tkrec {
   // if it can be associated to some segment of some trajectory
   void Algos::refine_clustering(PreclusterSolutionHdl & precluster_solution)
   {
-    const double distance_threshold = _config_.clustering_hit_association_distance;
-    const double max_extention_distance = _config_.polylines_max_extention_distance;
+    const double distance_threshold = _config_.clustering.hit_association_distance;
+    const double max_extention_distance = _config_.polylines.max_extention_distance;
     
     auto & unclustered_tracker_hits = precluster_solution->get_unclustered_tracker_hits();
     auto & trajectories = precluster_solution->get_trajectories();
@@ -2259,98 +2379,122 @@ namespace tkrec {
     std::sort(solutions.begin(), solutions.end(), compare_solutions); 
   }
 
+//____________________________________________________________________________
+//////////////////////////////////////////////////////////////////////////////
+//// Alpha tracking //////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
 
-
-
-
-/*
-  // old clustering - might be good for alpha tracking!
-  TKclusterHdl Algos::find_cluster(const std::vector<TKtrhitHdl> & hits)
+  // 1. step - master function of alpha tracking 
+  void Algos::alpha_clustering()
   {
-    TKclusterHdl foundClusterHdl;
-    //number of different values of phi among which the cluster is being searched for
-    const int bins_phi = 100;
-    const auto sideId = hits.front()->get_SRL('s');
-    for(auto i = 0u; i < hits.size(); i++)
-      {
-        if( sideId != hits[i]->get_SRL('s'))
-          {
-            DT_LOG_DEBUG(_config_.verbosity, "cluster not found - hits from both sides included");
-            return foundClusterHdl;
-          }
+    for(auto & precluster : _event_->get_preclusters())
+    {
+      // clusterizes separatelly every prompt precluster
+      if( precluster->is_delayed() )
+      {        
+        std::vector<ConstTrackerHitHdl> & unclustered_hits = precluster->get_unclustered_tracker_hits(); 
+        if(unclustered_hits.size() > 2)
+        {
+          auto [phi_min_ptr, phi_max_ptr] = find_alpha_cluster(unclustered_hits);
+          AlphaClusterHdl alpha_cluster = std::make_shared<AlphaCluster>(unclustered_hits, phi_min_ptr, phi_max_ptr);
+          
+          precluster->get_clusters().push_back( alpha_cluster );
+          unclustered_hits.clear();
+          
+          alpha_cluster->find_center();
+          find_reference_time_bounds(alpha_cluster);
+          estimate_alpha_track(alpha_cluster);
+        }
+        else
+        {
+          // different approximative mode?
+        }
       }
+    }
+  }
 
+  std::pair<double, double> Algos::find_alpha_cluster(const std::vector<ConstTrackerHitHdl> & hits)
+  {
+    
+    //number of different values of phi among which the cluster is being searched for
+    const uint32_t bins_phi = _config_.alphas.clustering_resolution_phi;
+    
+    double phi_min_out = 0.0, phi_max_out = M_PI;
     if( hits.size() < 3 ) 
-      {
-        DT_LOG_DEBUG(_config_.verbosity, "cluster not found - too few usable hits");
-        return foundClusterHdl;
-      }
+    {
+      DT_LOG_DEBUG(_config_.verbosity, "cluster not found - too few usable hits");
+      return {phi_min_out, phi_max_out};
+    }
+    
+    const double tc_radius = _geom_.tc_radius;
         
     int max_count[bins_phi] = {0};
     double argmax_R[bins_phi];
     int global_max = 0;
-    for(int i = 0; i < bins_phi; i++)
+    for(int i = 0; i < bins_phi; ++i)
+    {
+      std::vector<double> boundaries;
+      std::vector<int> hit_count;
+      
+      double phi = i * M_PI / double(bins_phi);             
+      double sin_phi = std::sin(phi);
+      double cos_phi = std::cos(phi);
+      double boundary_down, boundary_up;
+              
+      boundaries.push_back(-10000);
+      hit_count.push_back(0);
+      boundaries.push_back(10000);
+              
+      for(const auto & hit : hits)
       {
-        std::vector<double> boundaries;
-        std::vector<int> hit_count;
-        double theta = i * M_PI / double(bins_phi);             
-        double boundary_down, boundary_up;
-                
-        boundaries.push_back(-10000);
-        hit_count.push_back(0);
-        boundaries.push_back(10000);
-                
-        for(auto j = 0u; j < hits.size(); j++)
-          {
-            const auto & hitPtr = hits.at(j);
-            double x = hitPtr->get_xy('x');
-            double y = hitPtr->get_xy('y');
-            if(i < bins_phi/2)
-              {
-                boundary_down = (x-22.0) * sin(theta) - (y+22.0) * cos(theta);
-                boundary_up   = (x+22.0) * sin(theta) - (y-22.0) * cos(theta);
-              }
-            else
-              {         
-                boundary_down = (x-22.0) * sin(theta) - (y-22.0) * cos(theta);
-                boundary_up   = (x+22.0) * sin(theta) - (y+22.0) * cos(theta);  
-              }
-                        
-            int k = 0;
-            while( boundary_down > boundaries.at(k) )
-              {
-                k++;
-              } 
-            if( boundary_down < boundaries.at(k) )
-              {
-                boundaries.insert(boundaries.begin()+k, boundary_down);
-                hit_count.insert(hit_count.begin()+k, hit_count.at(k-1));
-              }
-            while( boundary_up > boundaries.at(k) )                     
-              {
-                hit_count.at(k)++;
-                k++;
-              }
-            if( boundary_up < boundaries.at(k) )
-              {
-                boundaries.insert(boundaries.begin()+k, boundary_up);
-                hit_count.insert(hit_count.begin()+k, hit_count.at(k-1)-1);
-              }
+        double x = hit->get_x();
+        double y = hit->get_y();
+        if(i < bins_phi / 2)
+        {
+          boundary_down = (x - tc_radius) * sin_phi - (y + tc_radius) * cos_phi;
+          boundary_up   = (x + tc_radius) * sin_phi - (y - tc_radius) * cos_phi;
+        }
+        else
+        {         
+          boundary_down = (x - tc_radius) * sin_phi - (y - tc_radius) * cos_phi;
+          boundary_up   = (x + tc_radius) * sin_phi - (y + tc_radius) * cos_phi;  
+        }
+                    
+        int k = 0;
+        while( boundary_down > boundaries.at(k) )
+        {
+          ++k;
+        } 
+        if( boundary_down < boundaries.at(k) )
+        {
+          boundaries.insert(boundaries.begin()+k, boundary_down);
+          hit_count.insert(hit_count.begin()+k, hit_count.at(k-1));
+        }
+        while( boundary_up > boundaries.at(k) )                     
+        {
+          hit_count.at(k)++;
+          k++;
+        }
+        if( boundary_up < boundaries.at(k) )
+        {
+          boundaries.insert(boundaries.begin()+k, boundary_up);
+          hit_count.insert(hit_count.begin()+k, hit_count.at(k-1)-1);
+        }
 
-          }
-                
-        for(auto j = 0u; j < hit_count.size(); j++)
-          {
-            if(hit_count.at(j) > max_count[i])
-              {
-                max_count[i] = hit_count.at(j);
-                argmax_R[i] = (boundaries.at(j) + boundaries.at(j+1))/2.0;
-              }
-          }
-
-        if(max_count[i] > global_max)
-          global_max = max_count[i];
       }
+              
+      for(auto j = 0u; j < hit_count.size(); ++j)
+      {
+        if(hit_count.at(j) > max_count[i])
+        {
+          max_count[i] = hit_count.at(j);
+          argmax_R[i] = (boundaries.at(j) + boundaries.at(j+1)) / 2.0;
+        }
+      }
+
+      if(max_count[i] > global_max)
+        global_max = max_count[i];
+    }
 
     int phi_bin_min = 0;
     int phi_bin_max = 0;        
@@ -2358,71 +2502,307 @@ namespace tkrec {
     double phi_max;
         
     if(max_count[0] == global_max)
+    {
+      while(max_count[phi_bin_max] == global_max)
       {
-        while(max_count[phi_bin_max] == global_max)
-          {
-            phi_bin_max++;
-          }
-        phi_bin_min = bins_phi-1;
-        while(max_count[phi_bin_min] == global_max)
-          {
-            phi_bin_min--;
-          }
-
-        phi_max = phi_bin_max * M_PI / double(bins_phi);
-        phi_min = phi_bin_min * M_PI / double(bins_phi) - M_PI;
+        ++phi_bin_max;
       }
+      phi_bin_min = bins_phi - 1;
+      while(max_count[phi_bin_min] == global_max)
+      {
+        --phi_bin_min;
+      }
+
+      phi_max = double(phi_bin_max) * M_PI / double(bins_phi);
+      phi_min = double(phi_bin_min) * M_PI / double(bins_phi) - M_PI;
+    }
     else
+    {
+      while(max_count[phi_bin_min] < global_max)
       {
-        while(max_count[phi_bin_min] < global_max)
-          {
-            phi_bin_min++;
-          }             
-        phi_bin_max = phi_bin_min;
-        while(max_count[phi_bin_max] == global_max)
-          {
-            phi_bin_max++;
-          }
-
-        phi_min = (phi_bin_min-1.0) * M_PI / double(bins_phi);
-        phi_max = (phi_bin_max) * M_PI / double(bins_phi);
+        ++phi_bin_min;
+      }             
+      phi_bin_max = phi_bin_min;
+      while(max_count[phi_bin_max] == global_max)
+      {
+        ++phi_bin_max;
       }
 
-    double R_0 = argmax_R[phi_bin_max-1];
-    double theta_0 = double(phi_bin_max-1) * M_PI / double(bins_phi);
+      phi_min = (phi_bin_min - 1.0) * M_PI / double(bins_phi);
+      phi_max = (phi_bin_max) * M_PI / double(bins_phi);
+    }
+
+    double R_0 = argmax_R[phi_bin_max - 1];
+    double phi_0 = double(phi_bin_max - 1) * M_PI / double(bins_phi);
         
-    std::vector<TKtrhitHdl> cluster_hits;
-    for(auto j = 0u; j < hits.size(); j++)
+    std::vector<ConstTrackerHitHdl> cluster_hits;
+    double sin_phi_0 = std::sin(phi_0);
+    double cos_phi_0 = std::cos(phi_0);
+    for(const auto & hit : hits)
+    {
+      double boundary_down, boundary_up;
+      double x = hit->get_x();
+      double y = hit->get_y();
+      if(phi_bin_max-1 < bins_phi/2)
       {
-        auto & hitPtr = hits.at(j);
-        double boundary_down, boundary_up;
-        double x = hitPtr->get_xy('x');
-        double y = hitPtr->get_xy('y');
-        if(phi_bin_max-1 < bins_phi/2)
-          {
-            boundary_down = (x-22.0) * sin(theta_0) - (y+22.0) * cos(theta_0);
-            boundary_up   = (x+22.0) * sin(theta_0) - (y-22.0) * cos(theta_0);
-          }
-        else
-          {             
-            boundary_down = (x-22.0) * sin(theta_0) - (y-22.0) * cos(theta_0);
-            boundary_up   = (x+22.0) * sin(theta_0) - (y+22.0) * cos(theta_0);  
-          }
-        if(boundary_down <= R_0 && R_0 <= boundary_up)
-          {
-            cluster_hits.push_back(hitPtr);
-          }
+        boundary_down = (x - tc_radius) * sin_phi_0 - (y + tc_radius) * cos_phi_0;
+        boundary_up   = (x + tc_radius) * sin_phi_0 - (y - tc_radius) * cos_phi_0;
       }
-    cluster_hits = TKEvent::filter_distant(cluster_hits);
-    if(cluster_hits.size() < 3)
+      else
+      {             
+        boundary_down = (x - tc_radius) * sin_phi_0 - (y - tc_radius) * cos_phi_0;
+        boundary_up   = (x + tc_radius) * sin_phi_0 - (y + tc_radius) * cos_phi_0;  
+      }
+      if(boundary_down <= R_0 && R_0 <= boundary_up)
       {
-        return foundClusterHdl;
+        cluster_hits.push_back(hit);
       }
-    foundClusterHdl = std::make_shared<TKcluster>(cluster_hits, phi_min, phi_max);
-    return foundClusterHdl;
-  }*/
+    }
+      
+    if(cluster_hits.size() >= 3)
+    {
+      phi_min_out = phi_min;
+      phi_max_out = phi_max;
+      DT_LOG_DEBUG(_config_.verbosity, "Alpha cluster found with " << cluster_hits.size() << " tracker hits and angular restriction: [" << phi_min_out << ", " << phi_max_out << "] rad");
+    }
+    return {phi_min_out, phi_max_out};
+  }
   
-  
+  // estimates the possible range for the missing reference time
+  // TODO this needs to be mooooore robust
+  void Algos::find_reference_time_bounds(AlphaClusterHdl alpha_cluster)
+  {
+    const double min_possible_drift_time = _config_.alphas.min_possible_drift_time; // in nanoseconds
+    const double max_possible_drift_time = _config_.alphas.max_possible_drift_time; // in nanoseconds
+    
+    auto & tracker_hits = alpha_cluster->get_tracker_hits();
+    
+    std::sort(tracker_hits.begin(), tracker_hits.end(), 
+                  [](const auto& hit1, const auto& hit2){ return hit1->get_delayed_time() < hit2->get_delayed_time(); });
+                  
+    alpha_cluster->set_reference_time_min( tracker_hits.back()->get_delayed_time() - max_possible_drift_time );
+    alpha_cluster->set_reference_time_max( tracker_hits.front()->get_delayed_time() - min_possible_drift_time );
+  }
+    
+  void Algos::estimate_alpha_track(AlphaClusterHdl alpha_cluster)
+  {
+    const bool save_sinograms     = _config_.alphas.save_sinograms;
+    const double initial_phi_step = _config_.alphas.phi_step;
+    const double time_step        = _config_.alphas.time_step;
+    const uint32_t resolution_r   = _config_.alphas.resolution_r;
+    const double max_r            = _config_.alphas.max_r;
+    const double sigma            = _config_.alphas.uncertainty;
+    
+    //currently not needed
+    const uint32_t iterations = 1;
+    const double zoom_factor = 10.0;
+    
+    double time_start = alpha_cluster->get_reference_time_min();
+    double time_end = alpha_cluster->get_reference_time_max();
+    
+    auto & hits = alpha_cluster->get_tracker_hits(); 
+    double center_X = alpha_cluster->get_center_x();
+    double center_Y = alpha_cluster->get_center_y();
+
+    int time_iteration = 0; 
+          
+    double max = 0;
+    double best_ref_time = time_start;
+    double best_R = 0.0;
+    double best_phi = 0.0;
+    for(double time = time_end; time >= time_start; time -= time_step)
+    {
+      time_iteration++;
+      alpha_cluster->set_reference_time(time);
+      alpha_cluster->update_drift_radii();
+    
+      // size of region (delta_phi x delta_R) to be investigated
+      double delta_phi = alpha_cluster->get_phi_max() - alpha_cluster->get_phi_min();
+      double delta_R = 2.0 * max_r;
+
+      // peak_phi, peak_R store information about peak candidate
+      double peak_phi = (alpha_cluster->get_phi_min() + alpha_cluster->get_phi_max()) / 2.0;
+      double peak_R = 0.0;
+      
+      const uint32_t resolution_phi = delta_phi / (initial_phi_step * M_PI / 180.0);
+
+      for(int iter = 0; iter < iterations; ++iter)
+      {
+        double r_min = peak_R - (delta_R / 2.0);
+        double r_max = peak_R + (delta_R / 2.0);
+        double phi_min = peak_phi - (delta_phi / 2.0);
+        double phi_max = peak_phi + (delta_phi / 2.0);
+        
+        double offset = delta_phi / (2.0 * resolution_phi);
+
+        TH2F sinograms("sinograms", "sinograms; phi; r",
+           resolution_phi,
+           phi_min + offset,
+           phi_max + offset,
+           resolution_r,
+           r_min,
+           r_max);
+
+        // ROOT is slow! working directly with the underlaying array is faster!
+        float* sinograms_array = sinograms.GetArray();
+
+        // caching the values of phi_k, sin(phi_k) and cos(phi_k)
+        double arr_sin[resolution_phi+1];
+        double arr_cos[resolution_phi+1];
+        for(int k = 0; k <= resolution_phi; ++k)
+        {
+          double phi = phi_min + ( k * delta_phi / double(resolution_phi) );
+          arr_sin[k] = std::sin(phi);
+          arr_cos[k] = std::cos(phi);
+        }
+
+        // filling histograms
+        for(const auto & hit : hits)
+        {
+          if( !hit->has_valid_R() ) continue;
+          
+          for(int k = 0; k <= resolution_phi; ++k)
+          {
+            //double phi = arr_phi[k];
+            // r - legendre transform of the center of a circle (Hough transform)
+            double r = (hit->get_x() - center_X) * arr_sin[k] - (hit->get_y() - center_Y) * arr_cos[k];
+            double R_bin_width = delta_R / double(resolution_r);
+            
+            for(int half = 0; half < 2; ++half)
+            {	
+              // mu - legendre transform of half circle (+R/-R)
+              double mu = (r + (2.0 * half - 1.0) * hit->get_R());	
+
+              // gauss is calculated only for -3 to 3 sigma region to cut time							
+              double r1 = mu - 3.0 * sigma;
+              double r2 = mu + 3.0 * sigma;
+              
+    				  // if the 3sigma regions of the two halves of tracker hit overlap, we restrict the range to the middle (-+half bin for safety) 
+				      if(half == 0)
+				      {
+				      	r2 = std::min(r2, r - 0.5 * R_bin_width); 
+				      }
+				      else
+				      {
+				      	r1 = std::max(r1, r + 0.5 * R_bin_width);
+				      }
+
+              // bin numbers coresponding to r1 and r2 values
+              int bin1 = (double(resolution_r) * (r1 - r_min) / delta_R) + 1;
+              int bin2 = (double(resolution_r) * (r2 - r_min) / delta_R) + 1;
+                
+              // if the 3 sigma borders (bin1 or bin2) are outside the investigate range of the histogtam, we restrict it to the border
+              bin1 = std::max(0, bin1);
+              bin2 = std::min(int(resolution_r), bin2);
+
+              // real values of r coresponding to each bin 
+              double r_j1 = r_min + delta_R * double(bin1) / double(resolution_r);
+              double r_j2;
+              
+              // for large bins compared to the used sigma of gaussian bluring,
+              // the function is integrated over the bin (in R direction)  
+				      if(	R_bin_width > sigma )
+			        {
+                const double normalization = 1.0f / std::sqrt(2.0)*sigma;
+                for(int binj = bin1; binj < bin2 + 1; ++binj)
+                {
+                  r_j2 = r_j1 + R_bin_width;
+                  
+                  // average probability density in a bin given by gauss distribution with mean in mu 
+                  float weight = ( std::erf( (r_j2 - mu) * normalization ) 
+                                  - std::erf( (r_j1 - mu) * normalization ) ) 
+                                / (2.0 * R_bin_width);
+
+                  // result is 2D histogram of several sinusoid functions f(phi) in convolution with gauss in r                
+                  int globalBin = (resolution_phi + 2) * (binj + 1) + k;
+                  sinograms_array[globalBin] += weight;
+
+                  r_j1 = r_j2;			
+                }	
+              }
+              // for dense enough binning, the values are plotted without intergating
+              // (saves A LOT of time - erf is expensive)
+              else
+              {
+				        for(int binj = bin1; binj < bin2 + 1; ++binj)
+			          {
+				          r_j2 = r_j1 + R_bin_width;
+				        
+					        // average probability density in a bin given by gauss distribution with mean in mu 
+					        double r_center = (r_j2 + r_j1) * 0.5f;
+					        float weight = (mu - r_center) / sigma;
+					        weight = fast_exp( -0.5f * weight * weight ); // faster approximation of exp(x)
+					      
+					        // result is 2D histogram of several sinusoid functions f(phi) in convolution with gauss in r
+		              int globalBin = (resolution_phi + 2) * (binj + 1) + k;
+                  sinograms_array[globalBin] += weight;
+					        
+					        r_j1 = r_j2;
+				        }						
+              }			
+            }			
+          }	
+        }										
+
+        // Get bin number of maximum value
+        //int maxBin = sinograms.GetMaximumBin();
+        int nbins = sinograms.GetNcells();
+        int maxBin = static_cast<int>(std::max_element(sinograms_array, sinograms_array + nbins) - sinograms_array);
+
+        // Get X and Y values corresponding to the maximum bin
+        int bin_phi, bin_R, bin_Z;
+        sinograms.GetBinXYZ(maxBin, bin_phi, bin_R, bin_Z);
+        peak_phi = sinograms.GetXaxis()->GetBinCenter(bin_phi);
+        peak_R = sinograms.GetYaxis()->GetBinCenter(bin_R);
+
+        delta_phi = delta_phi / zoom_factor;
+        delta_R = delta_R / zoom_factor;
+
+        if( save_sinograms ) 
+        {
+          sinograms.SetEntries(resolution_phi * resolution_r);
+          TCanvas c2("sinograms", "sinograms", 1000, 800);
+          c2.cd();
+          sinograms.SetStats(0);
+          sinograms.SetContour(100);
+          sinograms.Draw("COLZ");
+          c2.SaveAs(Form("Events_visu/alpha-run-%d_event-%d_iter-%d_time-%d.png",
+                          _event_->get_run_number(),
+                          _event_->get_event_number(),
+                          iter,
+                          time_iteration));
+          c2.Close();
+        }
+        
+                
+        double current_max = sinograms_array[maxBin];
+        if( current_max > max )
+        {
+          max = current_max;
+          best_ref_time = time;
+          best_R = peak_R;
+          best_phi = peak_phi;
+        }
+      }
+    }
+    
+    // result should be between -pi and pi
+    if( best_phi > M_PI / 2.0 )
+    {
+      best_phi -= M_PI;
+      best_R *= -1.0;
+    }
+    
+    double estimate_phi = best_phi;
+    double estimate_r = best_R + center_X * std::sin(best_phi) - center_Y * std::cos(best_phi);
+    alpha_cluster->set_reference_time(best_ref_time);
+    alpha_cluster->update_drift_radii();
+    
+    alpha_cluster->set_phi_estimate(estimate_phi);
+    alpha_cluster->set_r_estimate(estimate_r);
+    
+    DT_LOG_DEBUG(_config_.verbosity, "Alpha track estimate: phi = " << estimate_phi << " rad, r = " << estimate_r << " mm");
+  }
   
 } //  end of namespace tkrec
 

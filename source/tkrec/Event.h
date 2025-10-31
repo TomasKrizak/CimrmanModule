@@ -27,6 +27,7 @@ namespace tkrec {
 
     std::vector<OMHitHdl> OM_hits; ///< List of calo hits (only for visualization)	
     std::vector<TrackerHitHdl> tracker_hits; ///< List of tracker hits	
+    std::vector<TrackerHitHdl> invalid_tracker_hits; // prompt tracker hits wihtout drift radius - unusable
     std::vector<PreclusterHdl> preclusters; ///< List of preclusters		
     std::vector<SolutionHdl> solutions; ///< List of reconstruction solutions	
 		
@@ -49,6 +50,9 @@ namespace tkrec {
 
     std::vector<PreclusterHdl> & get_preclusters();		
     std::vector<ConstPreclusterHdl> get_preclusters() const;	
+    
+    std::vector<TrackerHitHdl> & get_invalid_tracker_hits();
+    std::vector<ConstTrackerHitHdl> get_invalid_tracker_hits() const;
     
     std::vector<SolutionHdl> & get_solutions();		
     std::vector<ConstSolutionHdl> get_solutions() const;		

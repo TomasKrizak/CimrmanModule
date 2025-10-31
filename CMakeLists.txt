@@ -18,6 +18,7 @@ list(APPEND Cimrman_HEADERS
   source/tkrec/Algos.h
   source/tkrec/Geometry.h
   source/tkrec/Cluster.h
+  source/tkrec/AlphaCluster.h
   source/tkrec/Event.h
   source/tkrec/OMHit.h
   source/tkrec/Point.h
@@ -40,6 +41,7 @@ list(APPEND Cimrman_SOURCES
   source/tkrec/Trajectory.cpp
   source/tkrec/Track.cpp
   source/tkrec/Cluster.cpp
+  source/tkrec/AlphaCluster.cpp
   source/tkrec/OMHit.cpp
   source/tkrec/TrackerHit.cpp
   source/tkrec/Point.cpp

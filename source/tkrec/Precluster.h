@@ -7,6 +7,7 @@
 
 #include "tkrec/TrackerHit.h"
 #include "tkrec/Cluster.h"
+#include "tkrec/AlphaCluster.h"
 #include "tkrec/PreclusterSolution.h"
 
 #include <datatools/logger.h>
@@ -35,6 +36,7 @@ namespace tkrec {
     Precluster(const std::vector<ConstTrackerHitHdl> & tracker_hits, bool _prompt, int _side);	
     virtual ~Precluster() = default;    
     bool is_prompt() const;
+    bool is_delayed() const;
     int get_side() const;
     void set_side(int _side);
 

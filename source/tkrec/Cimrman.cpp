@@ -196,22 +196,24 @@ namespace tkrec {
 
   dpp::base_module::process_status Cimrman::process(datatools::things & workItem) 
   {
-    _work_->eventCounter++;
-    DT_LOG_DEBUG(_config_.verbosity, "============ New event #" << _work_->eventCounter);
-    _populate_working_event_(workItem);
-    _work_->palgo->process(_work_->event);	
-	
     namespace snedm = snemo::datamodel;
-
-    // Fill TKcluster data into TCD bank
-    const auto & falaiseCDbank = workItem.get<snedm::calibrated_data>(_config_.CD_label);
+    
+    DT_LOG_DEBUG(_config_.verbosity, "============ New event #" << _work_->eventCounter);
+    _work_->eventCounter++;
+    
+    // Fill CD and TCD data into Cimrman event data structure 
+    _populate_working_event_(workItem);
+    
+    // Run Cimrman reconstruction process
+    _work_->palgo->process(_work_->event);	
 	
     // Create or reset TCD bank
     auto & the_tracker_clustering_data
       = ::snedm::getOrAddToEvent<snedm::tracker_clustering_data>(_config_.TCD_label, workItem);
     the_tracker_clustering_data.clear();
 
-    // Fill TKtrack data into TCD bank:
+    // Fill Cimrman clustering data into TCD bank:
+    const auto & falaiseCDbank = workItem.get<snedm::calibrated_data>(_config_.CD_label);
     _fill_TCD_bank_(falaiseCDbank, the_tracker_clustering_data);
 
     // Create or reset TTD bank
@@ -219,7 +221,7 @@ namespace tkrec {
       = ::snedm::getOrAddToEvent<snedm::tracker_trajectory_data>(_config_.TTD_label, workItem);
     the_tracker_trajectory_data.clear();
 
-    // Fill TKtrack data into TTD bank
+    // Fill Cimrman trajectory data into TTD bank
     _fill_TTD_bank_(the_tracker_clustering_data, the_tracker_trajectory_data);
 
     // removing duplicate clustering solutions and fixing their connections to trajectory solutions
@@ -278,7 +280,7 @@ namespace tkrec {
       {
         int SRL[3] = {trhit->get_side(), trhit->get_row(), trhit->get_layer()};
         auto hit = std::make_shared<TrackerHit>(SRL);
-        hit->set_CDbank_tr_hit( trhit ); // TODO I cannot add as datatools::handle<const snemo::datamodel::calibrated_tracker_hit>
+        hit->set_CDbank_tr_hit( trhit ); 
 	      
         if(trhit->has_xy())
         {
@@ -300,13 +302,11 @@ namespace tkrec {
         {
           hit->set_R( trhit->get_r() / CLHEP::mm );
           hit->set_valid_R();
-          if(not std::isnan(trhit->get_sigma_r()))
+          if(not std::isnan(trhit->get_sigma_r()) 
+            && not _config_.recConfig.force_default_sigma_r)
           {
             sigmaR = trhit->get_sigma_r() / CLHEP::mm;
           }
-          // if (_config_.force_default_sigma_r) {
-          //   sigmaR = _config_.recConfig.default_sigma_r;
-          // }
           hit->set_sigma_R( sigmaR );
         }
         else
@@ -326,11 +326,53 @@ namespace tkrec {
           hit->set_Z(datatools::invalid_real());
           hit->set_sigma_Z(datatools::invalid_real());
         }
+        
         _work_->event.add_tracker_hit(hit);
       }
 
     }
-    DT_LOG_DEBUG(_config_.verbosity, "Working event has been populated");
+    
+    if(_config_.recConfig.use_provided_preclustering
+       && workItem.has(_config_.TCD_label))
+    {
+	    DT_LOG_DEBUG(_config_.verbosity, "Has TCD bank");
+	    using namespace snemo::datamodel;
+
+	    const auto & falaiseTCDbank = workItem.get<tracker_clustering_data>(_config_.TCD_label);
+	    DT_THROW_IF(falaiseTCDbank.solutions().empty(), std::logic_error, "no TCD solution!");
+      const auto & solution = falaiseTCDbank.solutions().front();
+      DT_LOG_DEBUG(_config_.verbosity, "Nb input cluster estimates = " << solution->get_clusters().size());
+      
+      for(const auto & cluster : solution->get_clusters())
+      {
+        DT_LOG_DEBUG(_config_.verbosity, "Nb input hits in cluster = " << cluster->hits().size());
+        if(cluster->hits().empty()) continue;
+        
+        int side = cluster->hits().front()->get_side();	        
+        bool prompt = cluster->hits().front()->is_prompt();
+        
+        std::vector<ConstTrackerHitHdl> temp_precluster;
+        for(const auto & falaise_hit : cluster->hits())
+        {
+          DT_THROW_IF(falaise_hit->get_side() != side, std::logic_error, "Input cluster with hits on both sides");
+          DT_THROW_IF(falaise_hit->is_prompt() != prompt, std::logic_error, "Input cluster with both prompt and dealyed hits");
+          for(auto & hit : _work_->event.get_tracker_hits())
+          {
+            if( hit->get_CDbank_tr_hit()->get_hit_id() == falaise_hit->get_hit_id() )
+            {
+              temp_precluster.push_back(hit);
+              break;
+            }
+          }
+        }
+        if(not temp_precluster.empty())
+        {
+          _work_->event.add_precluster(temp_precluster, prompt, side);
+        }
+      }
+    }
+    
+    DT_LOG_DEBUG(_config_.verbosity, "Working event has been populated \n");
     
     return;
   }
@@ -342,6 +384,8 @@ namespace tkrec {
     // creating one clustering solution for each TK solution based on associated hits of individual trajectories
     // (1 falaise cluster = all associated tracker hits of 1 TK trajectory)
     std::vector<SolutionHdl> & solutions = _work_->event.get_solutions(); 
+    
+    DT_LOG_DEBUG(_config_.verbosity, "Nb TCD solutions: " << solutions.size());
     for(auto i = 0u; i < solutions.size(); ++i)
     {
       SolutionHdl & solution = solutions[i]; 
@@ -352,9 +396,14 @@ namespace tkrec {
       htcs->set_solution_id(the_tracker_clustering_data.size() - 1);
       
       auto & all_unclustered_hits = htcs->get_unclustered_hits();
-      
+      auto & invalid_tracker_hits = _work_->event.get_invalid_tracker_hits();
+    	for(auto & hit : invalid_tracker_hits)
+    	{
+	    	all_unclustered_hits.push_back(hit->get_CDbank_tr_hit());
+    	}
+    
       for(auto & precluster_solution : solution->get_precluster_solutions())
-      {
+      {   
       	// adding unclustered tracker hits into the solution
       	auto & unclustered_hits = precluster_solution->get_unclustered_tracker_hits();
       	for(auto & hit : unclustered_hits)
@@ -370,7 +419,7 @@ namespace tkrec {
           snedm::TrackerClusterHdl cluster_handle = datatools::make_handle<snedm::tracker_cluster>();
           htcs->get_clusters().push_back(cluster_handle);
           cluster_handle->set_cluster_id(htcs->get_clusters().size() - 1);
-
+          
           std::vector<TrackHdl> & traj_segments = trajectory->get_segments();
           for(auto & segment : traj_segments)
           {
@@ -393,12 +442,14 @@ namespace tkrec {
           }
         }
       }
+      DT_LOG_DEBUG(_config_.verbosity, "TCD solution " << i << ": nb of clusters: " <<  htcs->get_clusters().size());
     }
     
     if(not solutions.empty())
     {
     	the_tracker_clustering_data.set_default(0);
     }
+    DT_LOG_DEBUG(_config_.verbosity, "TCD bank filled \n");
     
     return;
   }
@@ -408,6 +459,7 @@ namespace tkrec {
   {	
     namespace snedm = snemo::datamodel;
     std::vector<SolutionHdl> & solutions = _work_->event.get_solutions(); 
+    DT_LOG_DEBUG(_config_.verbosity, "nb TTD solutions: " << solutions.size());
     for(auto i = 0u; i < solutions.size(); ++i)
     {
       // clustering and tracking solutions are created with the same ordering as TK solutions
@@ -494,13 +546,15 @@ namespace tkrec {
           h_trajectory->set_pattern_handle(h_pattern);
         }
       }
+      
+      DT_LOG_DEBUG(_config_.verbosity, "TTD solution " << i << ": nb of trajectories: " <<  trajectory_solution->get_trajectories().size());
     }
     
     if(not solutions.empty())
     {
     	the_tracker_trajectory_data.set_default_solution(0);
     }
-    
+    DT_LOG_DEBUG(_config_.verbosity, "TTD bank filled \n");
     return;
   }
 
@@ -512,6 +566,9 @@ namespace tkrec {
     
     auto & cluster_solutions = the_tracker_clustering_data.solutions();
     auto & trajectory_solutions = the_tracker_trajectory_data.get_solutions();
+    
+    DT_LOG_DEBUG(_config_.verbosity, "TTD solutions: " << trajectory_solutions.size());
+    DT_LOG_DEBUG(_config_.verbosity, "TCD solutions before: " << cluster_solutions.size());
     
     // sorting of hits of clusters in clustering solutions (based on hit IDs)
     for(auto & cl_sol : cluster_solutions)
@@ -534,13 +591,13 @@ namespace tkrec {
       const auto & clusters2 = cl_sol2->get_clusters();      
       if(clusters1.size() != clusters2.size()) return false; 
       
-      for(unsigned i = 0; i < clusters1.size(); ++i)
+      for(unsigned int i = 0; i < clusters1.size(); ++i)
       {
         const auto & hits1 = clusters1[i]->hits();
         const auto & hits2 = clusters2[i]->hits();
         if(hits1.size() != hits2.size()) return false;
         
-        for(unsigned j = 0; j < hits1.size(); ++j)
+        for(unsigned int j = 0; j < hits1.size(); ++j)
         {
           if( hits1[j]->get_hit_id() != hits2[j]->get_hit_id() ) return false;
         }
@@ -573,6 +630,8 @@ namespace tkrec {
     {
       cluster_solutions[i]->set_solution_id(i);
     }
+    
+    DT_LOG_DEBUG(_config_.verbosity, "TCD solutions after: " << cluster_solutions.size() << "\n");
   }
 
 } //  end of namespace tkrec

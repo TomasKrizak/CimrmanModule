@@ -172,6 +172,7 @@ namespace tkrec {
       bool is_broken = false;
       bool is_associated = false;
       bool has_height = false;
+      bool is_delayed = false;
 
       for(const auto & hit : _event_->tracker_hits)
       {
@@ -203,7 +204,12 @@ namespace tkrec {
           if( hit->has_valid_R() )
           {
             has_height = true;
-          }             
+          }    
+          
+          if( !hit->is_prompt() )
+          {
+            is_delayed = true;
+          }         
           break;
         }
       }
@@ -217,86 +223,47 @@ namespace tkrec {
                                         -thit->get_x(), radius, radius);
           tracker_hits.push_back(tracker_cell);
           tracker_cell->SetLineWidth(1);
-          switch(hits_option_)
+          if(hits_option_ & show_hit_invalid)
           {
-          case 0:
-            break;
-          case 31:
             tracker_cell->SetFillColor(kOrange);
-            tracker_cell->Draw("same"); 
-            break;
-          case 2:
-            tracker_cell->SetFillColor(kOrange);
-            tracker_cell->Draw("same");                 
-            break;
-          case 3:
-            tracker_cell->SetFillColor(kOrange);
-            tracker_cell->Draw("same");                 
-            break;              
+            tracker_cell->Draw("same");
           }
         }
         else
         {
           auto tracker_cell = std::make_shared<TEllipse>(thit->get_y(),
                                       -thit->get_x(),
-                                      radius + 3.0 * sigma,
-                                      radius + 3.0 * sigma);
+                                      radius + sigma,
+                                      radius + sigma);
           tracker_hits.push_back(tracker_cell);
           tracker_cell->SetLineWidth(0);  
-                          
-          if(is_associated)
+                                            
+          if(hits_option_ & show_hit_used)
+            tracker_cell->SetFillColor(kRed);       
+              
+          if(!has_height && (hits_option_ & show_hit_novertical))
+            tracker_cell->SetFillColor(kMagenta);             
+                     
+          if(is_associated && (hits_option_ & show_hit_associated))
           {
-            switch(hits_option_)
-            {
-            case 0:
-              tracker_cell->SetFillColor(kRed);
-              break;
-            case 31:
-              tracker_cell->SetFillColor(kRed);
-              break;
-            case 2:
-              tracker_cell->SetFillColor(kGreen);                     
-              break;
-            case 3:
-              if(has_height)
-              {
-                tracker_cell->SetFillColor(kGreen);                 
-              }
-              else
-              {                                                     
-                tracker_cell->SetFillColor(kTeal);
-              }
-              break;          
-            }
-          } 
-          else
+            tracker_cell->SetFillColor(kGreen);         
+
+            if(!has_height && (hits_option_ & show_hit_novertical))
+              tracker_cell->SetFillColor(kTeal);                 
+          }          
+          
+          if(is_delayed && (hits_option_ & show_hit_delayed))
           {
-            switch(hits_option_)
-            {
-            case 31: // 3
-              if(has_height)
-              {
-                tracker_cell->SetFillColor(kRed);
-              }
-              else
-              {                                                     
-                tracker_cell->SetFillColor(kMagenta);
-              }
-              break;
-                                        
-            default:
-              tracker_cell->SetFillColor(kRed);
-              break;
-            }
+            tracker_cell->SetFillColor(kBlue);  
           }
-                              
+          
           tracker_cell->Draw("same");
-          if( radius - 3.0 * sigma > 0.0 )
+          if( radius - sigma > 0.0 )
           {
             auto tracker_cell_in = std::make_shared<TEllipse>(thit->get_y(),
                                                          -thit->get_x(),
-                                                         radius - 3.0 * sigma,
-                                                         radius - 3.0 * sigma);   
+                                                         radius - sigma,
+                                                         radius - sigma);   
             tracker_hits.push_back(tracker_cell_in);
             tracker_cell_in->SetLineWidth(0);
             tracker_cell_in->Draw("same");
@@ -588,7 +555,7 @@ namespace tkrec {
       TGeoVolume *box;
       int* SWCR = hit->get_SWCR();
       double pos[3];
-      if(hit->get_OM_num() < 520) // Mainwall
+      if(hit->get_OM_num() >= 0 && hit->get_OM_num() < 520) // Mainwall
       {
         pos[0] = caloLocator.getXCoordOfWall(SWCR[0]);	
         pos[1] = caloLocator.getYCoordOfColumn(SWCR[0], SWCR[2]);
@@ -622,10 +589,10 @@ namespace tkrec {
       }
       else // Gveto
       {
+        /* Gveto locator does not work!!!
         pos[0] = gvetoLocator.getXCoordOfColumn(SWCR[0], SWCR[1], SWCR[2]);	
         pos[1] = gvetoLocator.getYCoordOfColumn(SWCR[0], SWCR[1], SWCR[2]);
         pos[2] = gvetoLocator.getZCoordOfWall(SWCR[0], SWCR[1]);
-      
         box = gGeoManager->MakeBox(Form("OM:%d.%d.%d.%d",
 				   SWCR[0],
 			     SWCR[1],
@@ -635,6 +602,7 @@ namespace tkrec {
 		       _geom_.gv_sizex / 2.0,
 		       _geom_.gv_sizey / 2.0,
 		       _geom_.gv_sizez / 2.0);
+      */
       }     
               
       TGeoHMatrix *trans = new TGeoHMatrix("Trans");
@@ -656,8 +624,8 @@ namespace tkrec {
     for(const auto & trhit : _event_->tracker_hits)
     {
       double radius = _geom_.tc_radius; // default value
-      double sigma_R = 2.0; //default value
-      double sigma_Z = 17.0; //trkHit->get_sigma_Z();
+      double sigma_R = trhit->get_sigma_R();
+      double sigma_Z = trhit->get_sigma_Z();
               
       if( trhit->has_valid_R() ) 
       {

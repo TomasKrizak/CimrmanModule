@@ -68,6 +68,11 @@ namespace tkrec {
     return prompt;
   }
   
+  bool Precluster::is_delayed() const
+  {
+    return !prompt;
+  }
+  
   int Precluster::get_side() const
   {
     return side;

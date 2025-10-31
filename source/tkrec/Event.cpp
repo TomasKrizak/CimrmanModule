@@ -25,6 +25,7 @@ namespace tkrec {
 
     OM_hits.clear();
     tracker_hits.clear();
+    invalid_tracker_hits.clear();
     preclusters.clear();
     solutions.clear();
   }
@@ -59,6 +60,22 @@ namespace tkrec {
   {
     std::vector<ConstTrackerHitHdl> hits;
     for (const auto& h : tracker_hits)
+    {
+      hits.push_back(h);
+    }
+    return hits;
+  }
+
+    
+  std::vector<TrackerHitHdl> & Event::get_invalid_tracker_hits()
+  {
+    return invalid_tracker_hits;
+  }
+
+  std::vector<ConstTrackerHitHdl> Event::get_invalid_tracker_hits() const
+  {
+    std::vector<ConstTrackerHitHdl> hits;
+    for (const auto& h : invalid_tracker_hits)
     {
       hits.push_back(h);
     }
@@ -112,7 +129,14 @@ namespace tkrec {
   
   void Event::add_tracker_hit(const TrackerHitHdl & trhit)
   {
-    tracker_hits.push_back(trhit);
+    if( !trhit->has_valid_R() && trhit->is_prompt())
+    {
+      invalid_tracker_hits.push_back(trhit);
+    }
+    else
+    {
+      tracker_hits.push_back(trhit);    
+    }
   }	
 
   void Event::print(std::ostream & out_) const
@@ -156,120 +180,7 @@ namespace tkrec {
     preclusters.emplace_back(std::make_shared<Precluster>(tracker_hits, is_prompt, side));
   }
 
-
 /*
-
-  std::vector<TKtrhitHdl> TKEvent::filter_side(const std::vector<TKtrhitHdl>& _hits, int side)
-  {
-    vector<TKtrhitHdl> hits;	
-    for(auto& hit : _hits)
-      {
-	if( side == hit->get_SRL('s'))
-	  {
-	    hits.push_back( hit );
-	  }
-      }
-    return hits;
-  }
-
-  std::vector<TKtrhitHdl> TKEvent::filter_usable(const std::vector<TKtrhitHdl>& _hits)
-  {
-    vector<TKtrhitHdl> hits;	
-    for(auto& hit : _hits)
-      {
-	// not using broken or too big (incorrectly associated) tracker hits
-	if( hit->get_r() != -1.0 && hit->get_r() < 35.0 && hit->get_r() > 2.0 )
-	  {
-	    hits.push_back( hit );
-	  }
-      }
-    return hits;
-  }
-
-  std::vector<TKtrhitHdl> TKEvent::filter_unassociated(const std::vector<TKtrhitHdl>& _hits)
-  {
-    vector<TKtrhitHdl> hits;	
-    for(auto& hit : _hits)
-      {
-	if( not hit->has_associated_track() )
-	  {
-	    hits.push_back( hit );
-	  }
-      }
-    return hits;
-  }
-
-  std::vector<TKtrhitHdl> TKEvent::filter_distant(const std::vector<TKtrhitHdl>& _hits)
-  {
-    double distance = 3.0; // in cells: 1 == 44mm
-    vector<TKtrhitHdl> hits;
-    for(auto i = 0u; i < _hits.size(); i++)
-      {
-	bool close = false;			
-	int RL[2] = {_hits[i]->get_SRL('R'),_hits[i]->get_SRL('L')};
-	for(auto j = 0u; j < _hits.size(); j++)
-	  {
-	    if(i == j) continue;
-	    if(pow(RL[0] - _hits[i]->get_SRL('R'), 2) + pow(RL[1] - _hits[i]->get_SRL('L'), 2) <= distance*distance)
-	      {
-		close = true;
-		// continue or break?	
-	      }		
-	  }
-	if( close )
-	  { 
-	    hits.push_back(_hits[i]);
-	  } 
-      }
-    return hits;
-  }
-
-  std::vector<TKtrhitHdl> TKEvent::filter_unclustered(const std::vector<TKtrhitHdl>& _hits, const TKEvent & event_)
-  {
-    vector<TKtrhitHdl> hits;
-    for(auto& hit : _hits)
-      {
-	int SRL[3] = {hit->get_SRL('S'), hit->get_SRL('R'), hit->get_SRL('L')};
-	bool clustered = false;			
-	for(auto j = 0u; j < event_.clusters.size(); j++)
-	  {	
-	    for(auto k = 0u; k < event_.clusters[j]->get_tr_hits().size(); k++)
-	      {	
-		if(event_.clusters[j]->get_tr_hits()[k]->get_SRL('S') == SRL[0] &&
-		   event_.clusters[j]->get_tr_hits()[k]->get_SRL('R') == SRL[1] &&
-		   event_.clusters[j]->get_tr_hits()[k]->get_SRL('L') == SRL[2])
-		  {
-		    clustered = true;
-		  }
-	      }
-	  }
-	if( clustered  == false )
-	  {
-	    hits.push_back( hit );
-	  }
-      }
-    return hits;
-  }
-
-  std::vector<TKtrhitHdl> TKEvent::filter_close_hits(const std::vector<TKtrhitHdl>& _hits,
-						     double phi,
-						     double r,
-						     double distance_limit)
-  {
-    vector<TKtrhitHdl> hits;	
-    for(auto& hit : _hits)
-      {
-	double R = hit->get_r();
-	double x = hit->get_xy('x');
-	double y = hit->get_xy('y');
-	double distance = std::fabs(r - x*sin(phi) + y*cos(phi)) - R;
-	if( std::fabs(distance) <= distance_limit )
-	  {
-	    hits.push_back( hit );
-	  }
-      }
-    return hits;
-  }
 
   void TKEvent::set_r(std::string drift_model, std::string association_mode)
   {	

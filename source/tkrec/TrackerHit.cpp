@@ -7,15 +7,10 @@
 
 namespace tkrec {
 
-/*
+
   // dimensions in mm
   // origin in the center of detector
-  static double foil_spacex = 62.0; // falaise value. (originally set to 58)
-  const double tc_radius = 22.0; // in mm
-  const double tc_sizez = 2770.0; // in mm
-*/
-
-  const double TrackerHit::default_sigma_R = 2.0; // in mm
+  const double TrackerHit::default_sigma_R = 2.0; // in mm //_config_.default_sigma_r; TODO??
   const double TrackerHit::default_sigma_Z = 17.0; // in mm
   const double TrackerHit::default_R = 22.0; // in mm
   const double TrackerHit::default_Z = 0.0; // in mm
@@ -134,7 +129,7 @@ namespace tkrec {
   {
     y = _y;
   }
-  void TrackerHit::set_R(double _R)
+  void TrackerHit::set_R(double _R) const
   {
     R = _R;
   }
@@ -144,7 +139,7 @@ namespace tkrec {
     Z = _Z;
   }
   
-  void TrackerHit::set_sigma_R(double _sigma_R)
+  void TrackerHit::set_sigma_R(double _sigma_R) const
   {
     sigma_R = _sigma_R;
   }
@@ -154,7 +149,7 @@ namespace tkrec {
     sigma_Z = _sigma_Z;
   }
 
-  void TrackerHit::set_valid_R()
+  void TrackerHit::set_valid_R() const
   {
     valid_R = true;
   }
@@ -162,6 +157,16 @@ namespace tkrec {
   void TrackerHit::set_valid_Z()
   {
     valid_Z = true;
+  }
+  
+  void TrackerHit::set_invalid_R() const
+  {
+    valid_R = false;
+  }
+
+  void TrackerHit::set_invalid_Z()
+  {
+    valid_Z = false;
   }
   
   bool TrackerHit::is_prompt() const
@@ -172,6 +177,35 @@ namespace tkrec {
   void TrackerHit::set_as_prompt()
   {
   	prompt_hit = true;
+  }
+
+  void TrackerHit::update_drift_radius(double drift_time) const
+  {
+    const double time_usec = drift_time / 1000.0;
+    const double _tracker_drift_model_manu_params_[5] = {0.263223, -0.030965, -0.571594, 6.01392e-02, 1.13142e+03};
+    double radius;
+    if (time_usec < 0)
+    {
+      radius = 0;
+      valid_R = false;
+    }
+    else
+    {
+      //if (time_usec > 30.0)
+        //DT_LOG_WARNING(get_logging_priority(), " tracker hit with too large anode drift time = " << time_usec << " us");
+      const double r2 = _tracker_drift_model_manu_params_[3] * std::log(1 + time_usec * _tracker_drift_model_manu_params_[4]);
+      if (time_usec > 10.0)
+        radius = r2;
+      else
+      {
+        const double r1 = _tracker_drift_model_manu_params_[0] * std::exp(_tracker_drift_model_manu_params_[1] * time_usec) / std::pow(time_usec, _tracker_drift_model_manu_params_[2]);
+        radius = std::min(r1, r2);
+      }
+
+      valid_R = true;
+      R = radius * 44.0;
+      sigma_R = 1.1;
+    }
   }
 
   void TrackerHit::print(std::ostream & out_) const

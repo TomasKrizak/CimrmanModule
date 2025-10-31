@@ -13,15 +13,14 @@ namespace tkrec {
 
   Cluster::Cluster(const std::vector<ConstTrackerHitHdl> & _tracker_hits,
 		       double _phi_estimate,
-		       double _r_estimate,
-		       bool _alpha_cluster)
+		       double _r_estimate)
     : Cluster()
+    
   {
     DT_THROW_IF(_tracker_hits.size() < 1, std::logic_error, "No tracker hits");
-    phi_estimate = _phi_estimate;
-    r_estimate = _r_estimate;
     tracker_hits = _tracker_hits;
-    alpha_cluster = _alpha_cluster;
+    phi_estimate = _phi_estimate; 
+    r_estimate = _r_estimate;
     return;
   }
 

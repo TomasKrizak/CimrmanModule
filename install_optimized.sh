@@ -1,15 +1,14 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 # Clean build directory
 rm -rf ./build
 mkdir build
 cd build
 
-# Configure with optimizations and debug symbols for profiling
 cmake .. \
-  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-  -DCMAKE_CXX_FLAGS="-march=native -funroll-loops -fomit-frame-pointer"
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_CXX_FLAGS="-O3 -fno-math-errno"
 
-# Build using all available cores
-make -j$(nproc)
+# Build using many jobs
+make -j 4

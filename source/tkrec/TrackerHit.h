@@ -27,11 +27,11 @@ namespace tkrec {
     		
     double x = datatools::invalid_real();
     double y = datatools::invalid_real(); 
-    double R = default_R;
+    mutable double R = default_R;
     double Z = default_Z;
-    double sigma_R = default_sigma_R;
+    mutable double sigma_R = default_sigma_R;
     double sigma_Z = default_sigma_Z;
-    bool valid_R = false;
+    mutable bool valid_R = false;
     bool valid_Z = false;
     
     bool prompt_hit = false; 
@@ -59,13 +59,14 @@ namespace tkrec {
     
     void set_x(double _x);
     void set_y(double _y);
-    void set_R(double _R);
+    void set_R(double _R) const;
     void set_Z(double _Z);
-    void set_sigma_R(double _sigma_R);
-    void set_sigma_Z(double _sigma_Z);
-    void set_valid_R();
+    void set_sigma_R(double _sigma_R = default_sigma_R) const;
+    void set_sigma_Z(double _sigma_Z = default_sigma_Z);
+    void set_valid_R() const;
     void set_valid_Z();
-    
+    void set_invalid_R() const;
+    void set_invalid_Z();
     
     const int* get_SRL() const;
     int* get_SRL();
@@ -76,6 +77,8 @@ namespace tkrec {
     
     bool is_prompt() const;
     void set_as_prompt();
+    
+    void update_drift_radius(double drift_time) const;
 
     void print(std::ostream & out_ = std::cout) const;
 

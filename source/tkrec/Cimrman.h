@@ -14,6 +14,7 @@
 #include <bayeux/datatools/clhep_units.h>
 #include <bayeux/datatools/logger.h>
 #include <bayeux/datatools/handle.h>
+#include <bayeux/datatools/exception.h>
 #include <bayeux/geomtools/line_3d.h>
 #include <bayeux/geomtools/polyline_3d.h>
 #include <bayeux/geomtools/box.h>
