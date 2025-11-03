@@ -83,5 +83,7 @@ See the provided example configuration file *testing/test2/pipeline.conf*, which
 
 ## Software design
 
+The data structure is build in several steps of the reconstruction as suggested in the scheme bellow. The colorcoding indicate the steps responsible for the creation of the obejcts.
+
 ![Cimrman data structure](Cimrman_data_structure.png)
 
