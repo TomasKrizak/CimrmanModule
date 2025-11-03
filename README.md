@@ -80,3 +80,8 @@ See the provided example configuration file *testing/test2/pipeline.conf*, which
 	* *max_trajectories_middlepoint_distance*: maximum allowed horizontal shift of the segments to be connected into a polyline
    	* *max_trajectory_endpoints_distance*: maximum allowed 3D distance for two endpoints of two trajectories to be connected into polyline
 	* *max_trajectory_connection_angle*: maximum alowed 3D angle for two trajectories to be connected into one polyline trajectory
+
+## Software design
+
+![Cimrman data structure](Cimrman_data_structure.png)
+
