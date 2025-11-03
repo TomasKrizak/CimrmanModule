@@ -6,8 +6,6 @@ Cimrman is a track reconstruction module for SuperNEMO. It reconstructs charged 
 
 To obtain the final **PTD bank** you then need to apply [**Charged Particle Tracking**](https://github.com/SuperNEMO-DBD/Falaise/tree/develop/modules/ChargedParticleTracking) module that extrapolates the verteces and creates the PTD bank.
 
-You can find detailed description of the algorithm, its structure and the derivation of all methods in my [Master thesis](https://dspace.cvut.cz/handle/10467/123238). Specifically, Chapter 5 describes the software structure of the algorithm.
-
 ## Module installation
 
 In the future the module will be integrated in Falaise by default, but at the moment the module has to be installed independantly. For this reason, I temporarily provided the installation script install.sh
@@ -84,6 +82,8 @@ See the provided example configuration file *testing/test2/pipeline.conf*, which
 ## Software design
 
 The data structure is build in several steps of the reconstruction as suggested in the scheme bellow. The colorcoding indicate the steps responsible for the creation of the obejcts.
+
+You can find detailed description of the algorithm and the derivation of all methods in my [Master thesis](https://dspace.cvut.cz/handle/10467/123238). Specifically, Chapter 5 describes the software structure of the algorithm in more detail.
 
 ![Cimrman data structure](Cimrman_data_structure.png)
 
