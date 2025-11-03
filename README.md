@@ -2,9 +2,9 @@
 
 *"Algorithm so intuitive, you would think Jára Cimrman designed it."*
 
-Cimrman is a track reconstruction module for SuperNEMO. It reconstructs charged particle trajectories using a combination of Legendre transform and maximum likelihood methods. Named in tribute to the great Czech thinker Jára Cimrman. The module takes **CD bank as an input**, reconstructs the trajectories within its own internal structure and **outputs both TCD and TTD data banks**, meaning it is responsible for clustering of tracker hits and for trajectory reconstruction at the same time. Currently it is able to produce **line and polyline trajectories**. It also detects ambiguous parts of tracker data and **provides all alternative possible solutions** (*tracker_trajectory_solution* and *tracker_clustering_solution*) in such cases. 
+Cimrman is a track reconstruction module for SuperNEMO. It reconstructs charged particle trajectories using a combination of Legendre transform and maximum likelihood method. Named in tribute to the great Czech thinker Jára Cimrman. The module takes **CD bank as an input**, reconstructs the trajectories within its own internal structure and **outputs both TCD and TTD data banks**, meaning it is responsible for clustering of tracker hits and for trajectory reconstruction at the same time. Currently it is able to produce **line and polyline trajectories**. It also detects ambiguous parts of tracker data and **provides all alternative possible solutions** (*tracker_trajectory_solution* and *tracker_clustering_solution*) in such cases. 
 
-To obtain the final **PTD bank** you then need to apply **Charged Particle Tracking** module that extrapolates the verteces and creates the PTD bank.
+To obtain the final **PTD bank** you then need to apply [**Charged Particle Tracking**](https://github.com/SuperNEMO-DBD/Falaise/tree/develop/modules/ChargedParticleTracking) module that extrapolates the verteces and creates the PTD bank.
 
 You can find detailed description of the algorithm, its structure and the derivation of all methods in my [Master thesis](https://dspace.cvut.cz/handle/10467/123238). Specifically, Chapter 5 describes the software structure of the algorithm.
 
