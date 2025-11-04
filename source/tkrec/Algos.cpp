@@ -622,14 +622,31 @@ namespace tkrec {
     // creating a cluster from the biggest groups if it has at least 3 hits
     // putting the rest back into unclustered hits  
     bool cluster_found = false; 
+    
+    bool valid_Z = false;
+    std::vector<TrackerHitHdl> invalid_Z_cluster;
+    
     for(auto j = 0u; j < sub_clusters.size(); ++j)
     {
       if(j == largest && sub_clusters[j].size() > 2u)
-      {
-        // create and add new cluster to the precluster
-        ClusterHdl cluster = std::make_shared<Cluster>( sub_clusters[j], phi_estimate, r_estimate );
-        clusters.push_back( cluster );
+      {        
         cluster_found = true;
+
+        int no_valid_Z = std::count_if( sub_clusters[j].begin(), sub_clusters[j].end(), 
+                                      [](const auto & hit){ return hit->has_valid_Z(); } );
+                      
+        if(no_valid_Z > 1)
+        {
+          valid_Z = true;
+        
+          // create and add new cluster to the precluster
+          ClusterHdl cluster = std::make_shared<Cluster>( sub_clusters[j], phi_estimate, r_estimate );
+          clusters.push_back( cluster );
+        }
+        else
+        {
+          invalid_Z_cluster = sub_clusters[j];
+        }
       }
       else
       {
@@ -647,6 +664,10 @@ namespace tkrec {
       {
         clusterize_precluster(sub_group, clusters);
         tracker_hits.insert(tracker_hits.end(), sub_group.begin(), sub_group.end());
+      }
+      if( not valid_Z )
+      {
+        tracker_hits.insert(tracker_hits.end(), invalid_Z_cluster.begin(), invalid_Z_cluster.end());
       }
     }
   }

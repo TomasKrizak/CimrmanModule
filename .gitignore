@@ -6,6 +6,9 @@ cmake_install.cmake
 Makefile
 
 # Ignore generated binaries and libraries
+*.brio
+
+# Ignore generated binaries and libraries
 *.o
 *.so
 *.a
