@@ -771,9 +771,9 @@ namespace tkrec {
       float* sinograms_array = sinograms.GetArray();
 
       // caching the values of phi_k, sin(phi_k) and cos(phi_k)
-      double arr_sin[resolution_phi+1];
-      double arr_cos[resolution_phi+1];
-      for(int k = 0; k <= resolution_phi; ++k)
+      double arr_sin[resolution_phi];
+      double arr_cos[resolution_phi];
+      for(int k = 0; k < resolution_phi; ++k)
       {
         double phi = phi_min + ( k * delta_phi / double(resolution_phi) );
         arr_sin[k] = std::sin(phi);
@@ -783,7 +783,7 @@ namespace tkrec {
       // filling histograms
       for(const auto & hit : hits)
       {
-        for(int k = 0; k <= resolution_phi; ++k)
+        for(int k = 0; k < resolution_phi; ++k)
         {
           //double phi = arr_phi[k];
           // r - legendre transform of the center of a circle (Hough transform)
@@ -836,7 +836,7 @@ namespace tkrec {
                               / (2.0 * R_bin_width);
 
                 // result is 2D histogram of several sinusoid functions f(phi) in convolution with gauss in r                
-                int globalBin = (resolution_phi + 2) * (binj + 1) + k;
+                int globalBin = (resolution_phi + 2) * (binj + 1) + (k + 1);
                 sinograms_array[globalBin] += weight;
                 
                 // alternative slower versions:
@@ -860,7 +860,7 @@ namespace tkrec {
 					      weight = fast_exp( -0.5f * weight * weight ); // faster approximation of exp(x)
 					    
 					      // result is 2D histogram of several sinusoid functions f(phi) in convolution with gauss in r
-		            int globalBin = (resolution_phi + 2) * (binj + 1) + k;
+		            int globalBin = (resolution_phi + 2) * (binj + 1) + (k + 1);
                 sinograms_array[globalBin] += weight;
 					      
 					      r_j1 = r_j2;
@@ -2671,9 +2671,9 @@ namespace tkrec {
         float* sinograms_array = sinograms.GetArray();
 
         // caching the values of phi_k, sin(phi_k) and cos(phi_k)
-        double arr_sin[resolution_phi+1];
-        double arr_cos[resolution_phi+1];
-        for(int k = 0; k <= resolution_phi; ++k)
+        double arr_sin[resolution_phi];
+        double arr_cos[resolution_phi];
+        for(int k = 0; k < resolution_phi; ++k)
         {
           double phi = phi_min + ( k * delta_phi / double(resolution_phi) );
           arr_sin[k] = std::sin(phi);
@@ -2685,7 +2685,7 @@ namespace tkrec {
         {
           if( !hit->has_valid_R() ) continue;
           
-          for(int k = 0; k <= resolution_phi; ++k)
+          for(int k = 0; k < resolution_phi; ++k)
           {
             //double phi = arr_phi[k];
             // r - legendre transform of the center of a circle (Hough transform)
@@ -2738,7 +2738,7 @@ namespace tkrec {
                                 / (2.0 * R_bin_width);
 
                   // result is 2D histogram of several sinusoid functions f(phi) in convolution with gauss in r                
-                  int globalBin = (resolution_phi + 2) * (binj + 1) + k;
+                  int globalBin = (resolution_phi + 2) * (binj + 1) + (k + 1);
                   sinograms_array[globalBin] += weight;
 
                   r_j1 = r_j2;			
@@ -2758,7 +2758,7 @@ namespace tkrec {
 					        weight = fast_exp( -0.5f * weight * weight ); // faster approximation of exp(x)
 					      
 					        // result is 2D histogram of several sinusoid functions f(phi) in convolution with gauss in r
-		              int globalBin = (resolution_phi + 2) * (binj + 1) + k;
+		              int globalBin = (resolution_phi + 2) * (binj + 1) + (k + 1);
                   sinograms_array[globalBin] += weight;
 					        
 					        r_j1 = r_j2;
