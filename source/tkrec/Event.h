@@ -5,7 +5,7 @@
 #include <vector>
 #include <iostream>
 
-// TK headers
+// Cimrman headers
 #include "tkrec/OMHit.h"
 #include "tkrec/TrackerHit.h"
 #include "tkrec/Precluster.h"

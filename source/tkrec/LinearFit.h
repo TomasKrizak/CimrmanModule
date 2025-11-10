@@ -6,10 +6,10 @@
 #include <memory>
 #include <math.h>
 
-#include "tkrec/Likelihood.h"
-//#include "tkrec/Cluster.h"
-
 #include <datatools/utils.h>
+
+// Cimrman headers
+#include "tkrec/Likelihood.h"
 
 namespace tkrec {
 
@@ -55,6 +55,8 @@ namespace tkrec {
     double d = datatools::invalid_real();	
 
     double chi_squared = datatools::invalid_real();
+    
+    std::weak_ptr<const Cluster> origin_cluster;
 
     Likelihood likelihood;
         

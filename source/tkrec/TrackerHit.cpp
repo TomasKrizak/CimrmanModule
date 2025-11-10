@@ -1,4 +1,4 @@
-// TK headers
+// Cimrman headers
 #include "tkrec/TrackerHit.h"
 
 #include <datatools/exception.h>
@@ -184,15 +184,13 @@ namespace tkrec {
     const double time_usec = drift_time / 1000.0;
     const double _tracker_drift_model_manu_params_[5] = {0.263223, -0.030965, -0.571594, 6.01392e-02, 1.13142e+03};
     double radius;
-    if (time_usec < 0)
+    if (time_usec < 0.0 || time_usec > 30.0 )
     {
       radius = 0;
       valid_R = false;
     }
     else
     {
-      //if (time_usec > 30.0)
-        //DT_LOG_WARNING(get_logging_priority(), " tracker hit with too large anode drift time = " << time_usec << " us");
       const double r2 = _tracker_drift_model_manu_params_[3] * std::log(1 + time_usec * _tracker_drift_model_manu_params_[4]);
       if (time_usec > 10.0)
         radius = r2;

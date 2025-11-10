@@ -1,4 +1,4 @@
-// TK headers
+// Cimrman headers
 #include "tkrec/Cluster.h"
 
 // Standard library:

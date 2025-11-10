@@ -5,12 +5,14 @@
 #include <iostream>
 #include <memory>
 
+#include <datatools/logger.h>
+
+// Cimrman headers
 #include "tkrec/TrackerHit.h"
 #include "tkrec/Cluster.h"
 #include "tkrec/DelayedCluster.h"
 #include "tkrec/PreclusterSolution.h"
 
-#include <datatools/logger.h>
 
 namespace tkrec {
 

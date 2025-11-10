@@ -1,4 +1,4 @@
-// TK headers
+// Cimrman headers
 #include "tkrec/Likelihood.h"
 #include <tkrec/Cluster.h>
 

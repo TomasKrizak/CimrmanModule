@@ -86,8 +86,8 @@ namespace tkrec {
         config_.fetch_real_with_explicit_dimension("clustering.max_distance", 
                                                    "length");
       DT_THROW_IF(this->clustering.max_distance < 44.0 * CLHEP::mm,
-		  std::logic_error,
-		  "Invalid clustering.max_distance value");
+		              std::logic_error,
+		              "Invalid clustering.max_distance value");
     }
 
     if (config_.has_key("clustering.hit_association_distance")) {
@@ -132,8 +132,8 @@ namespace tkrec {
       this->chi_square_threshold =
         config_.fetch_dimensionless_real("chi_square_threshold");
       DT_THROW_IF(this->chi_square_threshold < 1.0,
-		  std::logic_error,
-		  "Invalid chi_square_threshold value");
+		              std::logic_error,
+		              "Invalid chi_square_threshold value");
     }
     
     if (config_.has_key("polylines.max_vertical_distance")) {
@@ -141,8 +141,8 @@ namespace tkrec {
         config_.fetch_real_with_explicit_dimension("polylines.max_vertical_distance",
                                                    "length");
       DT_THROW_IF(this->polylines.max_vertical_distance < 0.0 * CLHEP::mm,
-		  std::logic_error,
-		  "Invalid polylines.max_vertical_distance value");
+	                std::logic_error,
+	                "Invalid polylines.max_vertical_distance value");
     }
     
     if (config_.has_key("polylines.max_extention_distance")) {
@@ -150,8 +150,8 @@ namespace tkrec {
         config_.fetch_real_with_explicit_dimension("polylines.max_extention_distance",
                                                    "length");
       DT_THROW_IF(this->polylines.max_extention_distance < 0.0 * CLHEP::mm,
-		  std::logic_error,
-		  "Invalid polylines.max_extention_distance value");
+		              std::logic_error,
+		              "Invalid polylines.max_extention_distance value");
     }
     
     if (config_.has_key("polylines.min_tracker_hits_distance")) {
@@ -159,25 +159,27 @@ namespace tkrec {
         config_.fetch_real_with_explicit_dimension("polylines.min_tracker_hits_distance",
                                                    "length");
       DT_THROW_IF(this->polylines.min_tracker_hits_distance < 0.0 * CLHEP::mm,
-		  std::logic_error,
-		  "Invalid polylines.min_tracker_hits_distance value");
+		              std::logic_error,
+		              "Invalid polylines.min_tracker_hits_distance value");
     }
     
     if (config_.has_key("polylines.max_kink_angle")) {
       this->polylines.max_kink_angle =
-        config_.fetch_dimensionless_real("polylines.max_kink_angle");
-      DT_THROW_IF(this->polylines.max_kink_angle < 0.0 || this->polylines.max_kink_angle > 180.0,
-		  std::logic_error,
-		  "Invalid polylines.max_kink_angle value");
+        config_.fetch_real_with_explicit_dimension("polylines.max_kink_angle",
+                                                   "angle");
+      DT_THROW_IF(this->polylines.max_kink_angle < 0.0 * CLHEP::deg 
+                || this->polylines.max_kink_angle > 180.0 * CLHEP::deg,
+		            std::logic_error,
+		            "Invalid polylines.max_kink_angle value");
     }
     
     if (config_.has_key("polylines.max_trajectories_middlepoint_distance")) {
       this->polylines.max_trajectories_middlepoint_distance =
         config_.fetch_real_with_explicit_dimension("polylines.max_trajectories_middlepoint_distance",
                                                    "length");
-      DT_THROW_IF(this->polylines.max_trajectories_middlepoint_distance < 0.0,
-		  std::logic_error,
-		  "Invalid polylines.max_trajectories_middlepoint_distance value");
+      DT_THROW_IF(this->polylines.max_trajectories_middlepoint_distance < 0.0 * CLHEP::mm,
+		            std::logic_error,
+		            "Invalid polylines.max_trajectories_middlepoint_distance value");
     }
     
     if (config_.has_key("polylines.max_trajectory_endpoints_distance")) {
@@ -185,16 +187,19 @@ namespace tkrec {
         config_.fetch_real_with_explicit_dimension("polylines.max_trajectory_endpoints_distance",
                                                    "length");
       DT_THROW_IF(this->polylines.max_trajectory_endpoints_distance < 0.0 * CLHEP::mm,
-		  std::logic_error,
-		  "Invalid polylines.max_trajectory_endpoints_distance value");
+		              std::logic_error,
+		              "Invalid polylines.max_trajectory_endpoints_distance value");
     }
     
     if (config_.has_key("polylines.max_trajectory_connection_angle")) {
       this->polylines.max_trajectory_connection_angle =
-        config_.fetch_dimensionless_real("polylines.max_trajectory_connection_angle");
-      DT_THROW_IF(this->polylines.max_trajectory_connection_angle < 0.0 || this->polylines.max_trajectory_connection_angle > 180.0,
-		  std::logic_error,
-		  "Invalid polylines.max_trajectory_connection_angle value");
+        config_.fetch_real_with_explicit_dimension("polylines.max_trajectory_connection_angle",
+                                                   "angle");
+        
+      DT_THROW_IF(this->polylines.max_trajectory_connection_angle < 0.0 * CLHEP::deg 
+                || this->polylines.max_trajectory_connection_angle > 180.0 * CLHEP::deg,
+		            std::logic_error,
+		            "Invalid polylines.max_trajectory_connection_angle value");
     }
     
     if (config_.has_key("polylines.min_distance_from_foil")) {
@@ -202,13 +207,31 @@ namespace tkrec {
         config_.fetch_real_with_explicit_dimension("polylines.min_distance_from_foil",
                                                    "length");
       DT_THROW_IF(this->polylines.min_distance_from_foil < 0.0 * CLHEP::mm,
-		  std::logic_error,
-		  "Invalid polylines.min_distance_from_foil value");   
+		              std::logic_error,
+		              "Invalid polylines.min_distance_from_foil value");   
+    }
+    
+    if (config_.has_key("polylines.min_distance_from_main_walls")) {
+      this->polylines.min_distance_from_main_walls =
+        config_.fetch_real_with_explicit_dimension("polylines.min_distance_from_main_walls",
+                                                   "length");
+      DT_THROW_IF(this->polylines.min_distance_from_main_walls < 0.0 * CLHEP::mm,
+		              std::logic_error,
+		              "Invalid polylines.min_distance_from_main_walls value");   
+    }
+    
+    if (config_.has_key("polylines.min_distance_from_X_walls")) {
+      this->polylines.min_distance_from_X_walls =
+        config_.fetch_real_with_explicit_dimension("polylines.min_distance_from_X_walls",
+                                                   "length");
+      DT_THROW_IF(this->polylines.min_distance_from_X_walls < 0.0 * CLHEP::mm,
+		              std::logic_error,
+		              "Invalid polylines.min_distance_from_X_walls value");   
     }
     
     if (config_.has_key("alphas.clustering_resolution_phi")) {
       this->alphas.clustering_resolution_phi =
-        config_.fetch_integer_scalar("alphas.clustering_resolution_phi"); //??
+        config_.fetch_integer_scalar("alphas.clustering_resolution_phi");
     }
     
     if (config_.has_flag("alphas.save_sinograms")) {
@@ -217,10 +240,12 @@ namespace tkrec {
     
      if (config_.has_key("alphas.phi_step")) {
       this->alphas.phi_step =
-        config_.fetch_dimensionless_real("alphas.phi_step");
+        config_.fetch_real_with_explicit_dimension("alphas.phi_step",
+                                                   "angle");
         
-      DT_THROW_IF(this->alphas.phi_step < 0.05, std::logic_error,
-		  "Invalid alphas.phi_step value - too small");
+      DT_THROW_IF(this->alphas.phi_step < 0.05 * CLHEP::deg,
+                 std::logic_error,
+		            "Invalid alphas.phi_step value - too small");
     }
     
     if (config_.has_key("alphas.max_r")) {
@@ -228,13 +253,13 @@ namespace tkrec {
         config_.fetch_real_with_explicit_dimension("alphas.max_r",
                                                    "length");
       DT_THROW_IF(this->alphas.max_r < 0.0 * CLHEP::mm,
-		  std::logic_error,
-		  "Invalid alphas.max_r value");   
+		              std::logic_error,
+		              "Invalid alphas.max_r value");   
     }
     
     if (config_.has_key("alphas.resolution_r")) {
       this->alphas.resolution_r =
-        config_.fetch_integer_scalar("alphas.resolution_r"); //??
+        config_.fetch_integer_scalar("alphas.resolution_r"); 
     }
     
     if (config_.has_key("alphas.time_step")) {
@@ -242,8 +267,8 @@ namespace tkrec {
         config_.fetch_real_with_explicit_dimension("alphas.time_step",
                                                    "time");
       DT_THROW_IF(this->alphas.time_step < 10.0 * CLHEP::nm,
-		  std::logic_error,
-		  "Invalid alphas.time_step value - too small steps");   
+		              std::logic_error,
+		              "Invalid alphas.time_step value - too small steps");   
     }
     
     if (config_.has_key("alphas.uncertainty")) {
@@ -251,8 +276,8 @@ namespace tkrec {
         config_.fetch_real_with_explicit_dimension("alphas.uncertainty",
                                                    "length");
       DT_THROW_IF(this->alphas.uncertainty < 0.0 * CLHEP::mm,
-		  std::logic_error,
-		  "Invalid alphas.uncertainty value");   
+		              std::logic_error,
+		              "Invalid alphas.uncertainty value");   
     }
     
     if (config_.has_key("alphas.max_possible_drift_time")) {
@@ -261,8 +286,8 @@ namespace tkrec {
                                                    "time");
 		  
 		  DT_THROW_IF(this->alphas.max_possible_drift_time < 100.0 * CLHEP::nm,
-		  std::logic_error,
-		  "Invalid alphas.max_possible_drift_time value - too strict");   
+		              std::logic_error,
+		              "Invalid alphas.max_possible_drift_time value - too strict");   
     }
     
     if (config_.has_key("alphas.min_possible_drift_time")) {
@@ -270,8 +295,13 @@ namespace tkrec {
         config_.fetch_real_with_explicit_dimension("alphas.min_possible_drift_time",
                                                    "time");
       DT_THROW_IF(this->alphas.min_possible_drift_time < 0.0 * CLHEP::nm,
-		  std::logic_error,
-		  "Invalid alphas.min_possible_drift_time value - negative time");   
+		              std::logic_error,
+		              "Invalid alphas.min_possible_drift_time value - negative time");   
+    }
+    
+    if (config_.has_key("alphas.zoom_factor")) {
+      this->alphas.zoom_factor =
+        config_.fetch_dimensionless_real("alphas.zoom_factor");
     }
     
     return;
@@ -396,7 +426,9 @@ namespace tkrec {
 
     if (_visu_)
     {
-      if(_config_.visualization_2D)
+      auto & preclusters = _event_->get_preclusters();
+      int count_delayed = std::count_if(preclusters.begin(), preclusters.end(), [](const auto & precl){return precl->is_delayed();} );
+      if(_config_.visualization_2D && count_delayed > 0)
       {
         DT_LOG_DEBUG(_config_.verbosity, "Creating and saving 2D visualizations");
         _visu_->make_top_projection();
@@ -994,16 +1026,18 @@ namespace tkrec {
         fit->d = h_temp - (r_0 * tan_phi0 * tan_theta);
       }
     }
+    
     // in case of only 1 tracker hit Z position the fit goes horizontally at the height of the one tracker hit
     else if( lik.no_Z == 1 ) 
     {
+      
       fit->h = lik.Zz / lik.Z;
       fit->theta = 0.0;
       
       fit->c = 0.0;
       fit->d = lik.Zz / lik.Z;
     } 
-    // TODO what if there is no available Z measurement?
+    DT_THROW_IF(lik.no_Z == 0, std::logic_error, "No Z infromation available for fitting!");
     
     return;
   }
@@ -1340,9 +1374,11 @@ namespace tkrec {
   
   std::vector<std::vector<TrackHdl>> Algos::find_polyline_candidates(std::vector<TrackHdl> & tracks, const int side) const
   {
-    const double vertical_threshold = _config_.polylines.max_vertical_distance;
-    const double min_distance = _config_.polylines.min_tracker_hits_distance;
-    const double min_distance_from_foil = _config_.polylines.min_distance_from_foil;
+    const double vertical_threshold           = _config_.polylines.max_vertical_distance;
+    const double min_distance                 = _config_.polylines.min_tracker_hits_distance;
+    const double min_distance_from_foil       = _config_.polylines.min_distance_from_foil;
+    const double min_distance_from_main_walls = _config_.polylines.min_distance_from_main_walls;
+    const double min_distance_from_X_walls    = _config_.polylines.min_distance_from_X_walls;
   
     std::vector<std::vector<TrackHdl>> trajectory_candidates;
     int no_tracks = (int)tracks.size();
@@ -1367,18 +1403,29 @@ namespace tkrec {
       {
         connections[ia][ja] = false;
       }
-
-    // connection candidate (each pair (i, j) of tracks) are filtered based on several criteria 
-    const snemo::geometry::gg_locator & ggLocator = _geom_.geo_loc->geigerLocator();
+    
+    // geo locators to access geometry information
+    const snemo::geometry::gg_locator & ggLocator = _geom_.geo_loc->geigerLocator();    
+    
+    const snemo::geometry::calo_locator & caloLocator = _geom_.geo_loc->caloLocator();
+    const double mainwall_x_cord = caloLocator.getXCoordOfWall(1);
+    
+    const snemo::geometry::xcalo_locator & xcaloLocator = _geom_.geo_loc->xcaloLocator();
+    const double X_wall_y_cord = xcaloLocator.getYCoordOfWall(1, 1);
+    
     // x coordinate of the outside border of tracker (side 1) 
     double tracker_x_max = ggLocator.getXCoordOfLayer(1, 8) + _geom_.tc_radius;
+    tracker_x_max = std::min( tracker_x_max, mainwall_x_cord - min_distance_from_main_walls );
+    
     // x coordinate of the inside border (source foil gap) of tracker (side 1)
-    double tracker_x_min = std::max(ggLocator.getXCoordOfLayer(1, 0) - _geom_.tc_radius, 
-    				     min_distance_from_foil);
-    // y coordinate of the border (source foil gap) of tracker (side 1)
+    double tracker_x_min = ggLocator.getXCoordOfLayer(1, 0) - _geom_.tc_radius;
+    tracker_x_min = std::max( min_distance_from_foil, tracker_x_min );
+
+    // y coordinate of the border of tracker (side 1)
     double tracker_y_max = ggLocator.getYCoordOfRow(1, 112) + _geom_.tc_radius;
+    tracker_y_max = std::min( tracker_y_max, X_wall_y_cord - min_distance_from_X_walls );
     
-    
+    // connection candidate (each pair (i, j) of tracks) are filtered based on several criteria 
     for(int i = 0; i < no_tracks; ++i)
     {
       TrackHdl track1 = tracks[i];
@@ -1607,7 +1654,7 @@ namespace tkrec {
       }
       else 
       {
-        angle = 180.0 - calculate_angle( *current_point, *kink_point, *next_alternative_point ); // TODO what if the hit does not have height??
+        angle = 180.0 - calculate_angle( *current_point, *kink_point, *next_alternative_point );
       }
       
       if( angle < max_angle )
@@ -2209,7 +2256,7 @@ namespace tkrec {
               }
               else
               {
-                ++position;           
+                position++;           
               }
             }        
           }
@@ -2279,7 +2326,7 @@ namespace tkrec {
       }
       if(not clustered)
       {
-        ++i;
+        i++;
       }
     }
     
@@ -2417,27 +2464,24 @@ namespace tkrec {
       if( precluster->is_delayed() )
       {        
         std::vector<TrackerHitHdl> & unclustered_hits = precluster->get_unclustered_tracker_hits(); 
-        if(unclustered_hits.size() > 2)
-        {
-          auto [phi_min_ptr, phi_max_ptr] = find_delayed_cluster(unclustered_hits);
-          DelayedClusterHdl delayed_cluster = std::make_shared<DelayedCluster>(unclustered_hits, phi_min_ptr, phi_max_ptr);
-          
-          precluster->get_clusters().push_back( delayed_cluster );
-          unclustered_hits.clear();
-          
-          delayed_cluster->find_center();
-          find_reference_time_bounds(delayed_cluster);
-          estimate_delayed_track(delayed_cluster);
-        }
-        else
-        {
-          // different approximative mode?
-        }
+        if(unclustered_hits.size() < 3) continue;
+        
+        std::vector<TrackerHitHdl> cluster_hits;
+        auto [phi_min_ptr, phi_max_ptr] = find_delayed_cluster(unclustered_hits, cluster_hits);
+        
+        if(cluster_hits.size() < 3) continue;
+        
+        DelayedClusterHdl delayed_cluster = std::make_shared<DelayedCluster>(cluster_hits, phi_min_ptr, phi_max_ptr);        
+        precluster->get_clusters().push_back( delayed_cluster );
+
+        delayed_cluster->find_center();
+        find_reference_time_bounds(delayed_cluster);
+        estimate_delayed_track(delayed_cluster);
       }
     }
   }
 
-  std::pair<double, double> Algos::find_delayed_cluster(const std::vector<TrackerHitHdl> & hits)
+  std::pair<double, double> Algos::find_delayed_cluster(std::vector<TrackerHitHdl> & hits, std::vector<TrackerHitHdl> & cluster_hits)
   {
     
     //number of different values of phi among which the cluster is being searched for
@@ -2559,11 +2603,13 @@ namespace tkrec {
     double R_0 = argmax_R[phi_bin_max - 1];
     double phi_0 = double(phi_bin_max - 1) * M_PI / double(bins_phi);
         
-    std::vector<ConstTrackerHitHdl> cluster_hits;
     double sin_phi_0 = std::sin(phi_0);
     double cos_phi_0 = std::cos(phi_0);
-    for(const auto & hit : hits)
+    
+    for(auto it = hits.begin(); it != hits.end(); )
     {
+      auto hit = *it;
+      
       double boundary_down, boundary_up;
       double x = hit->get_x();
       double y = hit->get_y();
@@ -2580,20 +2626,33 @@ namespace tkrec {
       if(boundary_down <= R_0 && R_0 <= boundary_up)
       {
         cluster_hits.push_back(hit);
+        hits.erase(it);
+      }
+      else
+      {
+        ++it;
       }
     }
-      
-    if(cluster_hits.size() >= 3)
+    
+    int valid_Z = std::count_if(cluster_hits.begin(), cluster_hits.end(), 
+                           [](const auto & hit){ return hit->has_valid_Z(); } );
+    
+    if(cluster_hits.size() >= 3 && valid_Z > 1)
     {
       phi_min_out = phi_min;
       phi_max_out = phi_max;
-      DT_LOG_DEBUG(_config_.verbosity, "Delayed cluster found with " << cluster_hits.size() << " tracker hits and angular restriction: [" << phi_min_out << ", " << phi_max_out << "] rad");
+      DT_LOG_DEBUG(_config_.verbosity, "Delayed cluster found with " << cluster_hits.size() << 
+                  " tracker hits and angular restriction: [" << phi_min_out << ", " << phi_max_out << "] rad");
+    }
+    else
+    {
+      hits.insert(hits.end(), cluster_hits.begin(), cluster_hits.end());
+      cluster_hits.clear();
     }
     return {phi_min_out, phi_max_out};
   }
   
   // estimates the possible range for the missing reference time
-  // TODO this needs to be mooooore robust
   void Algos::find_reference_time_bounds(DelayedClusterHdl delayed_cluster)
   {
     const double min_possible_drift_time = _config_.alphas.min_possible_drift_time; // in nanoseconds
@@ -2602,10 +2661,37 @@ namespace tkrec {
     auto & tracker_hits = delayed_cluster->get_tracker_hits();
     
     std::sort(tracker_hits.begin(), tracker_hits.end(), 
-                  [](const auto& hit1, const auto& hit2){ return hit1->get_delayed_time() < hit2->get_delayed_time(); });
+              [](const auto& hit1, const auto& hit2){
+                return hit1->get_delayed_time() < hit2->get_delayed_time(); });
+    
+    
+    std::for_each(tracker_hits.begin(), tracker_hits.end(), [](const auto& hit){ std::cout << hit->get_delayed_time() << std::endl; return;} );
+    
+    
+    // optimal case
+    double lower_bound = tracker_hits.back()->get_delayed_time() - max_possible_drift_time;           
+    double upper_bound = tracker_hits.front()->get_delayed_time() - min_possible_drift_time;
+    
+    // TODO what to do to make this better??
+    for(auto it = tracker_hits.rbegin()+1; it != tracker_hits.rend(); ++it)
+    {
+      if( lower_bound > upper_bound )
+      {
+        lower_bound = (*it)->get_delayed_time() - max_possible_drift_time; 
+      }
+      else
+      {
+        break;
+      } 
+    }
                   
-    delayed_cluster->set_reference_time_min( tracker_hits.back()->get_delayed_time() - max_possible_drift_time );
-    delayed_cluster->set_reference_time_max( tracker_hits.front()->get_delayed_time() - min_possible_drift_time );
+    delayed_cluster->set_reference_time_min( lower_bound );
+    delayed_cluster->set_reference_time_max( upper_bound );
+    
+    DT_LOG_DEBUG(_config_.verbosity, "Reference time bounds set: [" << delayed_cluster->get_reference_time_min()
+                                       << " , " << delayed_cluster->get_reference_time_max() << "] ns");
+    
+    DT_THROW_IF(lower_bound > upper_bound, std::logic_error, "Invalid reference time bounds found!");
   }
     
   void Algos::estimate_delayed_track(DelayedClusterHdl delayed_cluster)
@@ -2618,8 +2704,8 @@ namespace tkrec {
     const double sigma            = _config_.alphas.uncertainty;
     
     //currently not needed
+    const double zoom_factor = _config_.alphas.zoom_factor;
     const uint32_t iterations = 1;
-    const double zoom_factor = 10.0;
     
     double time_start = delayed_cluster->get_reference_time_min();
     double time_end = delayed_cluster->get_reference_time_max();
@@ -2634,6 +2720,7 @@ namespace tkrec {
     double best_ref_time = time_start;
     double best_R = 0.0;
     double best_phi = 0.0;
+    
     for(double time = time_end; time >= time_start; time -= time_step)
     {
       time_iteration++;
@@ -2660,13 +2747,13 @@ namespace tkrec {
         double offset = delta_phi / (2.0 * resolution_phi);
 
         TH2F sinograms("sinograms", "sinograms; phi; r",
-           resolution_phi,
-           phi_min + offset,
-           phi_max + offset,
-           resolution_r,
-           r_min,
-           r_max);
-
+                 resolution_phi,
+                 phi_min + offset,
+                 phi_max + offset,
+                 resolution_r,
+                 r_min,
+                 r_max);
+                 
         // ROOT is slow! working directly with the underlaying array is faster!
         float* sinograms_array = sinograms.GetArray();
 

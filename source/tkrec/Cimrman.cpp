@@ -341,10 +341,11 @@ namespace tkrec {
 	    const auto & falaiseTCDbank = workItem.get<tracker_clustering_data>(_config_.TCD_label);
 	    DT_THROW_IF(falaiseTCDbank.solutions().empty(), std::logic_error, "no TCD solution!");
       const auto & solution = falaiseTCDbank.solutions().front();
-      DT_LOG_DEBUG(_config_.verbosity, "Nb input cluster estimates = " << solution->get_clusters().size());
+      //DT_LOG_DEBUG(_config_.verbosity, "Nb input cluster estimates = " << solution->get_clusters().size());
       
       for(const auto & cluster : solution->get_clusters())
       {
+        
         DT_LOG_DEBUG(_config_.verbosity, "Nb input hits in cluster = " << cluster->hits().size());
         if(cluster->hits().empty()) continue;
         
@@ -372,6 +373,14 @@ namespace tkrec {
       }
     }
     
+    DT_LOG_DEBUG(_config_.verbosity, "Nb input prompt clusters = " << 
+                                    std::count_if(_work_->event.get_preclusters().begin(), _work_->event.get_preclusters().end(),
+                                                 [](const auto & precl){ return precl->is_prompt();} ) ); 
+                                                 
+    DT_LOG_DEBUG(_config_.verbosity, "Nb input delayed clusters = " << 
+                                    std::count_if(_work_->event.get_preclusters().begin(), _work_->event.get_preclusters().end(),
+                                                 [](const auto & precl){ return precl->is_delayed();} ) ); 
+                                                 
     DT_LOG_DEBUG(_config_.verbosity, "Working event has been populated \n");
     
     return;
@@ -420,6 +429,7 @@ namespace tkrec {
           htcs->get_clusters().push_back(cluster_handle);
           cluster_handle->set_cluster_id(htcs->get_clusters().size() - 1);
           
+          double reference_time; // for occasional delayed trajectories
           std::vector<TrackHdl> & traj_segments = trajectory->get_segments();
           for(auto & segment : traj_segments)
           {
@@ -428,17 +438,30 @@ namespace tkrec {
             {
               cluster_handle->hits().push_back(association.tracker_hit->get_CDbank_tr_hit());
             }
+            
+            // extracting reference time if possible 
+            const auto & origin_cluster = segment->get_fit()->origin_cluster;
+            if(auto cluster_ptr = origin_cluster.lock())
+            {
+              if(auto delayed_cluster = std::dynamic_pointer_cast<const tkrec::DelayedCluster>(cluster_ptr))
+              {
+                reference_time = delayed_cluster->get_reference_time();
+              }
+            }
+            
           }
           cluster_handle->set_geom_id(geomtools::geom_id(1201, 0, cluster_handle->hits().front()->get_side()));
           
           // marking the cluster as prompt or delayed based on one of its hits 
-          if(trajectory->get_segments().front()->get_associations().front().tracker_hit->is_prompt()) // TODO thats not nice
+          if(trajectory->get_segments().front()->get_associations().front().tracker_hit->is_prompt()) 
           {
 		        cluster_handle->make_prompt();
           }
           else
           {
           	cluster_handle->make_delayed();
+          	auto & auxiliaries = cluster_handle->grab_auxiliaries();
+            auxiliaries.store("reference_time", reference_time, "Reference time"); // TODO is this correct way of storing things into auxiliaries??
           }
         }
       }

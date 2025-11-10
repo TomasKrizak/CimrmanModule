@@ -1,4 +1,4 @@
-// TK headers
+// Cimrman headers
 #include "tkrec/Track.h"
 
 // ClassImp(tkrec::Track);
@@ -33,12 +33,14 @@ namespace tkrec {
   void Track::add_associated_tracker_hit(ConstTrackerHitHdl & tracker_hit)
   {
     Association association(tracker_hit);
+    double sin_phi = std::sin(fit->phi);
+    double cos_phi = std::cos(fit->phi);
 
-    double t0 = tracker_hit->get_x() * std::cos(fit->phi) + tracker_hit->get_y() * std::sin(fit->phi);
+    double t0 = tracker_hit->get_x() * cos_phi + tracker_hit->get_y() * sin_phi;
     association.parameter_t = t0;
     
-    double x0 = t0 * std::cos(fit->phi) + fit->r * std::sin(fit->phi);
-    double y0 = t0 * std::sin(fit->phi) - fit->r * std::cos(fit->phi);
+    double x0 = t0 * cos_phi + fit->r * sin_phi;
+    double y0 = t0 * sin_phi - fit->r * cos_phi;
     double z0 = t0 * std::tan(fit->theta) + fit->h;
 
      // creating Point obejcts to represent reconstructed avalanche origin points
@@ -65,7 +67,11 @@ namespace tkrec {
      return;
   }
   
-  // TODO can I add static storage for sin(phi), cos(phi)?
+  const LinearFitHdl & Track::get_fit() const
+  {
+    return fit;
+  }
+  
   double Track::calculate_t(double x, double y) const      
   {
     return x * std::cos(fit->phi) + y * std::sin(fit->phi); 

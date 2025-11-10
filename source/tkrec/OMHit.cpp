@@ -1,4 +1,4 @@
-// TK headers
+// Cimrman headers
 #include "tkrec/OMHit.h"
 
 // ClassImp(tkrec::OMHit);

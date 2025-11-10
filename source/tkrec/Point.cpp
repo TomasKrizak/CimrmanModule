@@ -1,4 +1,4 @@
-// TK headers
+// Cimrman headers
 #include "tkrec/Point.h"
 
 // ClassImp(tkrec::Point);

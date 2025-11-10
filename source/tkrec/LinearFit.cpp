@@ -1,4 +1,4 @@
-// TK headers
+// Cimrman headers
 #include "tkrec/LinearFit.h"
 #include "tkrec/Cluster.h" 
 
@@ -33,6 +33,8 @@ namespace tkrec {
     d = 0.0;
     
     likelihood = Likelihood(cluster);
+    
+    origin_cluster = cluster;
     return;
   }
 

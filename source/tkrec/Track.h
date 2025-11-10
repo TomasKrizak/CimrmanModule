@@ -8,6 +8,7 @@
 #include <memory>
 #include <algorithm>
 
+// Cimrman headers
 #include "tkrec/TrackerHit.h"
 #include "tkrec/LinearFit.h"
 #include "tkrec/Point.h"
@@ -16,27 +17,6 @@
 
 namespace tkrec {
 
-  // Track parametrised by LinearFit in two alternative ways:
-  // line in the form: (does not describe lines parallel to source foil)
-  //	y = ax + b
-  //	z = cx + d
-
-  // or in the form:
-  // 	x(t) = cos(phi)*cos(theta)*t + r*sin(phi)
-  // 	y(t) = sin(phi)*cos(theta)*t - r*cos(phi)
-  // 	z(t) = sin(theta)*t + h
-
-  // set of transformations:
-  //	a = tan(phi)
-  //	b = -r/cos(phi)
-  //	c = tan(theta)/cos(phi)
-  //	d = h - r*tan(phi)*tan(theta)
-
-  //	phi = atan(a) 
-  //	r = -b/sqrt(a*a+1.0)
-  //	theta = atan(c/sqrt(a*a+1.0))
-  //	h = d - a*b*c/(a*a+1.0)
-  
   struct Association
   {
     ConstTrackerHitHdl tracker_hit;
@@ -64,6 +44,7 @@ namespace tkrec {
   {
   private:
   
+    // Track geometrically described in LinearFit class
     LinearFitHdl fit;
     std::vector<Association> associations;
     
@@ -95,6 +76,8 @@ namespace tkrec {
   
     void update_associations();
     void evaluate();
+    
+    const LinearFitHdl & get_fit() const;
     
     void set_a(double _a);
     void set_b(double _b);

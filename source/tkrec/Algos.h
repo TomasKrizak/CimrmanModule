@@ -4,10 +4,13 @@
 #include <bayeux/datatools/logger.h>
 #include <bayeux/datatools/properties.h>
 
-// TK headers
+// Cimrman headers
 #include "tkrec/Event.h"
 #include "tkrec/Geometry.h"
 #include "tkrec/Visu.h"
+
+// Bayeux:
+#include <bayeux/datatools/clhep_units.h>
 
 
 namespace tkrec {
@@ -26,28 +29,29 @@ namespace tkrec {
   struct ClusteringConfing
   {
     bool save_sinograms = false;
-    double max_distance = 3.0 * 44.0; ///< mm
-    double hit_association_distance = 6.0; ///< mm
-    uint32_t no_iterations = 2u; ///< dimensionless
+    double max_distance = 3.0 * 44.0 * CLHEP::mm; 
+    double hit_association_distance = 6.0 * CLHEP::mm;
+    uint32_t no_iterations = 2u;
     uint32_t resolution_phi = 100u; // No bins
     uint32_t resolution_r = 250u; // No bins
-    double max_initial_precision_r = 6.0; ///< mm
-    double zoom_factor = 10.0; ///< dimensionless
-    double uncertainty = 2.0; ///< mm 
+    double max_initial_precision_r = 6.0 * CLHEP::mm; 
+    double zoom_factor = 10.0;
+    double uncertainty = 2.0 * CLHEP::mm;
   };
 
   /// Config for kinked trajectory reconstruction algorithms
   struct PolylinesConfig
   {  
-    double max_extention_distance = 120.0;  ///< mm 
-    double max_vertical_distance = 4.0; ///< mm 
-    double min_tracker_hits_distance = 100.0; ///< mm
-    double max_kink_angle = 120.0; // degrees
-    double max_trajectories_middlepoint_distance = 10.0; ///< mm 
-    double max_trajectory_endpoints_distance = 75.0; ///< mm 
-    double max_trajectory_connection_angle = 40.0; ///< degrees
-    double min_distance_from_foil = 75.0; ///< mm 
-    double min_distance_from_mainwalls = 75.0; ///< mm // TODO implement this
+    double max_extention_distance = 120.0 * CLHEP::mm;  
+    double max_vertical_distance = 4.0 * CLHEP::mm; 
+    double min_tracker_hits_distance = 100.0 * CLHEP::mm; 
+    double max_kink_angle = 120.0 * CLHEP::deg;
+    double max_trajectories_middlepoint_distance = 10.0 * CLHEP::mm; 
+    double max_trajectory_endpoints_distance = 75.0 * CLHEP::mm;
+    double max_trajectory_connection_angle = 50.0 * CLHEP::deg;
+    double min_distance_from_foil = 75.0 * CLHEP::mm; 
+    double min_distance_from_main_walls = 0.0 * CLHEP::mm;
+    double min_distance_from_X_walls = 0.0 * CLHEP::mm;
   };
   
   /// Config for kinked trajectory reconstruction algorithms
@@ -55,13 +59,14 @@ namespace tkrec {
   {  
     uint32_t clustering_resolution_phi = 100u; // No bins  
     bool save_sinograms = false;
-    uint32_t resolution_r = 100; // No bins
-    double phi_step = 0.5; // degrees 
-    double max_r = 30.0; // mm
-    double time_step = 100; // ns
-    double uncertainty = 2.0; // mm
-    double min_possible_drift_time = 0.0; // in nanoseconds
-    double max_possible_drift_time = 5000.0; // in nanoseconds
+    uint32_t resolution_r = 100u; // No bins
+    double phi_step = 0.5 * CLHEP::deg;
+    double max_r = 30.0 * CLHEP::mm;
+    double time_step = 100.0 * CLHEP::ns; 
+    double uncertainty = 2.0 * CLHEP::mm;
+    double min_possible_drift_time = 0.0 * CLHEP::ns; 
+    double max_possible_drift_time = 5000.0 * CLHEP::ns; 
+    double zoom_factor = 10.0;
   };
 
   /// Configuration parameters for event tracking reconstruction
@@ -70,12 +75,12 @@ namespace tkrec {
     datatools::logger::priority verbosity = datatools::logger::PRIO_FATAL;
     ElectronRecMode electron_mode = ElectronRecMode::undefined;
     
-    bool use_provided_preclustering = false;
-    bool reconstruct_alphas = false;
     bool visualization_2D = false;
     bool visualization_3D = false;
+    bool use_provided_preclustering = false;
+    bool reconstruct_alphas = false;
     bool force_default_sigma_r = false; ///< Flag to force the default sigma r value for tracker hits
-    double default_sigma_r = 2.0; ///< implicit unit: mm
+    double default_sigma_r = 2.0 * CLHEP::mm;
     double chi_square_threshold = 5.0; ///< dimensionless
 
     // For electron reconstruction modes
@@ -127,7 +132,8 @@ namespace tkrec {
 
     // step 2: alpha clustering and track estimation
     void alpha_clustering();
-    std::pair<double, double> find_delayed_cluster(const std::vector<TrackerHitHdl> & hits);
+    std::pair<double, double> find_delayed_cluster(std::vector<TrackerHitHdl> & hits,
+                                                   std::vector<TrackerHitHdl> & cluster_hits);
     void estimate_delayed_track(DelayedClusterHdl delayed_cluster);
     void find_reference_time_bounds(DelayedClusterHdl delayed_cluster);
 

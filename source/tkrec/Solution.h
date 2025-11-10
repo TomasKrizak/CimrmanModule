@@ -5,9 +5,11 @@
 #include <iostream>
 #include <memory>
 
+#include <datatools/logger.h>
+
+// Cimrman headers
 #include "tkrec/PreclusterSolution.h"
 
-#include <datatools/logger.h>
 
 namespace tkrec {
 

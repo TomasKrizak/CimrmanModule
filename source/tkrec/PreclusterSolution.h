@@ -5,11 +5,13 @@
 #include <iostream>
 #include <memory>
 
+#include <datatools/logger.h>
+
+// Cimrman headers
 #include "tkrec/Trajectory.h"
 #include "tkrec/Track.h"
 #include "tkrec/TrackerHit.h"
 
-#include <datatools/logger.h>
 
 namespace tkrec {
 

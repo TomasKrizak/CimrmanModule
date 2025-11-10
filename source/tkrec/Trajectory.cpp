@@ -1,4 +1,4 @@
-// TK headers
+// Cimrman headers
 #include "tkrec/Trajectory.h"
 
 // Bayeux:
