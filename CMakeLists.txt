@@ -22,6 +22,7 @@ list(APPEND Cimrman_HEADERS
   source/tkrec/Event.h
   source/tkrec/OMHit.h
   source/tkrec/Point.h
+  source/tkrec/Association.h
   source/tkrec/Cimrman.h
   source/tkrec/Track.h
   source/tkrec/Trajectory.h
@@ -45,6 +46,7 @@ list(APPEND Cimrman_SOURCES
   source/tkrec/OMHit.cpp
   source/tkrec/TrackerHit.cpp
   source/tkrec/Point.cpp
+  source/tkrec/Association.cpp
   source/tkrec/Solution.cpp
   source/tkrec/PreclusterSolution.cpp
   source/tkrec/Precluster.cpp

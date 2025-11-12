@@ -50,12 +50,6 @@ namespace tkrec {
     return;
   }
   
-  Association::Association(const ConstTrackerHitHdl & hit)
-    : tracker_hit(hit)
-  {
-    return;
-  }
-  
   // sorting the track associations based on position along the track
   void Track::sort_associations()
   {

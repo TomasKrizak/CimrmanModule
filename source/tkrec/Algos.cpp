@@ -2663,10 +2663,8 @@ namespace tkrec {
     std::sort(tracker_hits.begin(), tracker_hits.end(), 
               [](const auto& hit1, const auto& hit2){
                 return hit1->get_delayed_time() < hit2->get_delayed_time(); });
-    
-    
-    std::for_each(tracker_hits.begin(), tracker_hits.end(), [](const auto& hit){ std::cout << hit->get_delayed_time() << std::endl; return;} );
-    
+   
+    //std::for_each(tracker_hits.begin(), tracker_hits.end(), [](const auto& hit){ std::cout << hit->get_delayed_time() << std::endl; return;} );
     
     // optimal case
     double lower_bound = tracker_hits.back()->get_delayed_time() - max_possible_drift_time;           
