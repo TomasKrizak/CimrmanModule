@@ -14,44 +14,46 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/source)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/source)
 
 list(APPEND Cimrman_HEADERS
-  source/tkrec/Visu.h
   source/tkrec/Algos.h
-  source/tkrec/Geometry.h
+  source/tkrec/Association.h
   source/tkrec/Cluster.h
+  source/tkrec/Cimrman.h
   source/tkrec/DelayedCluster.h
+  source/tkrec/Geometry.h
   source/tkrec/Event.h
+  source/tkrec/Likelihood.h
+  source/tkrec/LinearFit.h
   source/tkrec/OMHit.h
   source/tkrec/Point.h
-  source/tkrec/Association.h
-  source/tkrec/Cimrman.h
-  source/tkrec/Track.h
-  source/tkrec/Trajectory.h
-  source/tkrec/TrackerHit.h
-  source/tkrec/Solution.h
   source/tkrec/PreclusterSolution.h
   source/tkrec/Precluster.h
-  source/tkrec/LinearFit.h
-  source/tkrec/Likelihood.h
+  source/tkrec/Sinogram.h
+  source/tkrec/Solution.h
+  source/tkrec/Track.h
+  source/tkrec/TrackerHit.h
+  source/tkrec/Trajectory.h
+  source/tkrec/Visu.h
   )
 
 list(APPEND Cimrman_SOURCES
-  source/tkrec/Cimrman.cpp
-  source/tkrec/Visu.cpp
   source/tkrec/Algos.cpp
-  source/tkrec/Event.cpp
-  source/tkrec/Trajectory.cpp
-  source/tkrec/Track.cpp
+  source/tkrec/Association.cpp
+  source/tkrec/Cimrman.cpp
   source/tkrec/Cluster.cpp
   source/tkrec/DelayedCluster.cpp
+  source/tkrec/Event.cpp
+  source/tkrec/Likelihood.cpp
+  source/tkrec/LinearFit.cpp
   source/tkrec/OMHit.cpp
-  source/tkrec/TrackerHit.cpp
   source/tkrec/Point.cpp
-  source/tkrec/Association.cpp
-  source/tkrec/Solution.cpp
   source/tkrec/PreclusterSolution.cpp
   source/tkrec/Precluster.cpp
-  source/tkrec/LinearFit.cpp
-  source/tkrec/Likelihood.cpp
+  source/tkrec/Sinogram.cpp
+  source/tkrec/Solution.cpp
+  source/tkrec/Track.cpp
+  source/tkrec/TrackerHit.cpp
+  source/tkrec/Trajectory.cpp
+  source/tkrec/Visu.cpp
   )
 
 add_library(Falaise_Cimrman SHARED

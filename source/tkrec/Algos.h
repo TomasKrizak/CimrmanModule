@@ -1,6 +1,22 @@
 #ifndef FALAISE_CIMRMAN_ALGOS_H
 #define FALAISE_CIMRMAN_ALGOS_H
 
+// Standard headers
+#include <iomanip>
+#include <algorithm>
+#include <vector>
+#include <stack>
+
+// Root:
+#include <TH2F.h>
+#include <TCanvas.h>
+
+// Boost:
+#include <boost/multi_array.hpp>
+
+// Bayeux:
+#include <bayeux/datatools/exception.h>
+#include <bayeux/datatools/clhep_units.h>
 #include <bayeux/datatools/logger.h>
 #include <bayeux/datatools/properties.h>
 
@@ -8,9 +24,7 @@
 #include "tkrec/Event.h"
 #include "tkrec/Geometry.h"
 #include "tkrec/Visu.h"
-
-// Bayeux:
-#include <bayeux/datatools/clhep_units.h>
+#include "tkrec/Sinogram.h"
 
 
 namespace tkrec {
@@ -31,7 +45,7 @@ namespace tkrec {
     bool save_sinograms = false;
     double max_distance = 3.0 * 44.0 * CLHEP::mm; 
     double hit_association_distance = 6.0 * CLHEP::mm;
-    uint32_t no_iterations = 2u;
+    uint32_t iterations = 2u;
     uint32_t resolution_phi = 100u; // No bins
     uint32_t resolution_r = 250u; // No bins
     double max_initial_precision_r = 6.0 * CLHEP::mm; 
@@ -60,8 +74,9 @@ namespace tkrec {
     uint32_t clustering_resolution_phi = 100u; // No bins  
     bool save_sinograms = false;
     uint32_t resolution_r = 100u; // No bins
+    uint32_t iterations = 2u;
     double phi_step = 0.5 * CLHEP::deg;
-    double max_r = 30.0 * CLHEP::mm;
+    double delta_r = 60.0 * CLHEP::mm;
     double time_step = 100.0 * CLHEP::ns; 
     double uncertainty = 2.0 * CLHEP::mm;
     double min_possible_drift_time = 0.0 * CLHEP::ns; 
@@ -123,7 +138,8 @@ namespace tkrec {
                                std::vector<ClusterHdl> & clusters);
     void find_cluster_Legendre(const std::vector<TrackerHitHdl> & hits, 
                                double & phi_estimate,
-                               double & r_estimate) const;
+                               double & r_estimate);
+                               
     void separate_close_hits_to_line(std::vector<TrackerHitHdl> & hits,
                                      std::vector<TrackerHitHdl> & hits_separated,
                                      const double phi,
@@ -179,6 +195,9 @@ namespace tkrec {
     CimrmanAlgoConfig _config_; ///< Configuration
     Event * _event_ = nullptr; ///< Working event to be reconstructed
     std::unique_ptr<Visu> _visu_; ///< Visualisation engine
+    
+    Sinogram prompt_sinogram_manager; // support worker class for calculation of prompt hits sinograms 
+    Sinogram delayed_sinogram_manager; // support worker class for calculation of delayed hits sinograms 
     
   };
 

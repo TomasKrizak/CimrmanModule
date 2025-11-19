@@ -33,7 +33,7 @@ namespace tkrec {
   void Event::set_event_ids(int _run_number, int _event_number)
   {
     event_number = _event_number;
-	run_number = _run_number;
+	  run_number = _run_number;
   }
  
   std::vector<OMHitHdl> & Event::get_OM_hits()
