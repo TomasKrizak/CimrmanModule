@@ -54,6 +54,8 @@ namespace tkrec {
     double get_Z() const;
     double get_sigma_R() const;
     double get_sigma_Z() const;
+    static double get_default_sigma_R();
+    static double get_default_sigma_Z();
     bool has_valid_R() const;
     bool has_valid_Z() const;
     

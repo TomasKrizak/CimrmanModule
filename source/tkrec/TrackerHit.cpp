@@ -85,6 +85,16 @@ namespace tkrec {
     return sigma_Z;
   }
   
+  double TrackerHit::get_default_sigma_R()
+  {
+    return default_sigma_R;
+  }
+  
+  double TrackerHit::get_default_sigma_Z()
+  {
+    return default_sigma_Z;
+  }
+  
   bool TrackerHit::has_valid_Z() const
   {
     return valid_Z;

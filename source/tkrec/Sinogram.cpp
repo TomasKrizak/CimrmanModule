@@ -52,6 +52,7 @@ namespace tkrec {
         
         iteration++;
       }
+      sinogram_ID++;
     }
 
     // converts phi index into the value of phi in the center of the phi column/row 
@@ -242,8 +243,17 @@ namespace tkrec {
       sinograms.SetContour(255);
       sinograms.Draw("COLZ");
       
-      const char* image_name = Form("Events_visu/prompt_sinogram-run-%d_event-%d_track-%d_iter-%d.png",
-                                    run_number, event_number, track_ID, iteration );
+      const char* image_name;
+      if( prompt )
+      {
+        image_name = Form("Events_visu/prompt_sinogram-run-%d_event-%d_track-%d_iter-%d.png",
+                                    run_number, event_number, sinogram_ID, iteration );
+      }
+      else
+      {
+        image_name = Form("Events_visu/delayed_sinogram-run-%d_event-%d_timestep-%d_iter-%d.png",
+                                    run_number, event_number, sinogram_ID, iteration );
+      }
       canvas.SaveAs(image_name);
       canvas.Close();    
     }
@@ -262,6 +272,11 @@ namespace tkrec {
     void Sinogram::reset_dual_space()
     {
       std::fill(dual_space.begin(), dual_space.end(), 0); 
+    }
+    
+    void Sinogram::reset_sinogram_counter()
+    {
+      sinogram_ID = 0;
     }
     
     void Sinogram::set_delta_phi(double _delta_phi)

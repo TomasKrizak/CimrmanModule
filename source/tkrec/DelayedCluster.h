@@ -33,8 +33,8 @@ namespace tkrec {
 		        double _r_max);
 		        
     DelayedCluster(const std::vector<TrackerHitHdl> & _tracker_hits,
-		        double _phi_min,
-		        double _phi_max);
+		        double _phi_min = 0.0,
+		        double _phi_max = M_PI);
 
     // calculates the average x,y as the center of the cluster
     void find_center();

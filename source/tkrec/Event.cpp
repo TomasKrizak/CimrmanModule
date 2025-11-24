@@ -82,11 +82,28 @@ namespace tkrec {
     return hits;
   }
 
+
+  std::vector<ClusterHdl> & Event::get_unfitted_clusters()
+  {
+    return unfitted_clusters;
+  }
+
+  std::vector<ConstClusterHdl> Event::get_unfitted_clusters() const
+  {
+    std::vector<ConstClusterHdl> clusters;
+    for (const auto & cl : unfitted_clusters)
+    {
+      clusters.push_back(cl);
+    }
+    return clusters;
+  }
+
+
   std::vector<PreclusterHdl> & Event::get_preclusters()
   {
     return preclusters;
   }
-
+  
   std::vector<ConstPreclusterHdl> Event::get_preclusters() const
   {
     std::vector<ConstPreclusterHdl> precl;
@@ -96,6 +113,7 @@ namespace tkrec {
     }
     return precl;
   }
+
 
   std::vector<SolutionHdl> & Event::get_solutions()
   {

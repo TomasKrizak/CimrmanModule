@@ -5,7 +5,6 @@
 #include <iostream>
 #include <cmath>
 #include <vector>
-// Standard headers
 #include <tuple>
 
 // Cimrman headers
@@ -57,7 +56,8 @@ namespace tkrec {
     // sinogram identifiers for saving png images 
     int run_number = 0; 
     int event_number = 0;
-    int track_ID = 0;
+    int sinogram_ID = 0;
+    bool prompt;
     
     void add_hit_to_sinogram(TrackerHitHdl & tracker_hit);
     inline double index_to_phi(uint32_t index_phi) const;
@@ -77,10 +77,11 @@ namespace tkrec {
     void save_sinogram() const;
     void set_run(int _run_number);
     void set_event(int _event_number); 
+
     
-    // resets internal state - esspecially helpful for alpha tracking 
-    void reset_dual_space();
-    void reset_state(double _peak_phi = 0.0, double _peak_r = 0.0);
+    void reset_dual_space(); // resets the internal buffer
+    void reset_state(double _peak_phi = 0.0, double _peak_r = 0.0); // resets internal state
+    void reset_sinogram_counter(); // resets sinogram_ID
     
     void set_delta_phi(double _delta_phi);
     void set_delta_r(double _delta_r);

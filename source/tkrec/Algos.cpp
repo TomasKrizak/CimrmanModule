@@ -341,7 +341,8 @@ namespace tkrec {
     // initializing prompt sinogram manager
     if(_config_.electron_mode != ElectronRecMode::undefined)
     {
-      std::cout << "AAA" << std::endl;
+      prompt_sinogram_manager.prompt = true;
+
       // fetching the setting from electron config
       Sinogram::Settings & set = prompt_sinogram_manager.get_settings();
       
@@ -361,6 +362,8 @@ namespace tkrec {
     // initializing delayed sinogram manager
     if(_config_.reconstruct_alphas)
     {
+      delayed_sinogram_manager.prompt = false;
+      
       // fetching the setting from alpha config
       Sinogram::Settings & set = delayed_sinogram_manager.get_settings();
       
@@ -373,7 +376,7 @@ namespace tkrec {
       
       // reserving space for the array
       delayed_sinogram_manager.get_dual_space().reserve( set.resolution_phi * set.resolution_r );
-      
+     
       DT_LOG_DEBUG(_config_.verbosity, "Sinogram manager for delayed hits initialized");
     }
     
@@ -460,7 +463,7 @@ namespace tkrec {
         _visu_->make_top_projection();
       }
       
-      if(_config_.visualization_3D)
+      if(_config_.visualization_3D && count_delayed > 0)
       {
         DT_LOG_DEBUG(_config_.verbosity, "Creating and saving 3D visualizations");
         _visu_->build_event();
@@ -561,7 +564,7 @@ namespace tkrec {
       int current = stack.top();
       stack.pop();
       cluster_indices.push_back(current);
-
+      
       for(int neighbour : adjacency[current])
       {
         if(!visited[neighbour])
@@ -800,7 +803,7 @@ namespace tkrec {
     phi_estimate = peak_phi;
     r_estimate = peak_r; 
     
-    DT_LOG_DEBUG(_config_.verbosity, "Peak found: [" << phi_estimate << ", " << r_estimate << "]");
+    DT_LOG_DEBUG(_config_.verbosity, "Peak found: (" << phi_estimate << " rad, " << r_estimate << " mm)");
   }
 
 //____________________________________________________________________________
@@ -2321,23 +2324,27 @@ namespace tkrec {
     for(auto & precluster : _event_->get_preclusters())
     {
       // clusterizes separatelly every prompt precluster
-      if( precluster->is_delayed() )
-      {        
-        std::vector<TrackerHitHdl> & unclustered_hits = precluster->get_unclustered_tracker_hits(); 
-        if(unclustered_hits.size() < 3) continue;
-        
-        std::vector<TrackerHitHdl> cluster_hits;
-        auto [phi_min_ptr, phi_max_ptr] = find_delayed_cluster(unclustered_hits, cluster_hits);
-        
-        if(cluster_hits.size() < 3) continue;
-        
-        DelayedClusterHdl delayed_cluster = std::make_shared<DelayedCluster>(cluster_hits, phi_min_ptr, phi_max_ptr);        
-        precluster->get_clusters().push_back( delayed_cluster );
-
-        delayed_cluster->find_center();
-        find_reference_time_bounds(delayed_cluster);
-        estimate_delayed_track(delayed_cluster);
+      if( precluster->is_prompt() ) continue;
+  
+      std::vector<TrackerHitHdl> & unclustered_hits = precluster->get_unclustered_tracker_hits(); 
+      if(unclustered_hits.size() < 3)
+      {
+        //DelayedClusterHdl unfitted_cluster = std::make_shared<DelayedCluster>( unclustered_hits );
+        //_event_->get_unfitted_clusters().push_back( unfitted_cluster );
+        continue;
       }
+      
+      std::vector<TrackerHitHdl> cluster_hits;
+      auto [phi_min_ptr, phi_max_ptr] = find_delayed_cluster(unclustered_hits, cluster_hits);
+      
+      if(cluster_hits.size() < 3) continue;
+      
+      DelayedClusterHdl delayed_cluster = std::make_shared<DelayedCluster>(cluster_hits, phi_min_ptr, phi_max_ptr);        
+      precluster->get_clusters().push_back( delayed_cluster );
+
+      delayed_cluster->find_center();
+      find_reference_time_bounds(delayed_cluster);
+      estimate_delayed_track(delayed_cluster);
     }
   }
 
@@ -2346,7 +2353,8 @@ namespace tkrec {
     //number of different values of phi among which the cluster is being searched for
     const uint32_t bins_phi = _config_.alphas.clustering_resolution_phi;
     
-    double phi_min_out = 0.0, phi_max_out = M_PI;
+    double phi_min_out = -M_PI / 2.0;
+    double phi_max_out = M_PI / 2.0;
     if( hits.size() < 3 ) 
     {
       DT_LOG_DEBUG(_config_.verbosity, "cluster not found - too few usable hits");
@@ -2612,6 +2620,8 @@ namespace tkrec {
     
     delayed_cluster->set_phi_estimate(best_phi);
     delayed_cluster->set_r_estimate(best_r);
+    
+    delayed_sinogram_manager.reset_sinogram_counter();
     
     DT_LOG_DEBUG(_config_.verbosity, "Delayed track estimate: phi = " << best_phi << " rad, r = " << best_r << " mm");
   

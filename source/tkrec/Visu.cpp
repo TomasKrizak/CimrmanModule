@@ -1,28 +1,6 @@
 // Cimrman headers
 #include "tkrec/Visu.h"
 
-// ROOT headers
-#include "TCanvas.h"
-#include "TColor.h"
-#include "TEllipse.h"
-#include "TH2D.h"
-#include "TAttLine.h"
-#include "TGLViewer.h"
-#include "TGeoManager.h"
-#include "TGeoVolume.h"
-#include "TFile.h"
-#include "TROOT.h"
-#include "TPolyLine3D.h"
-#include "TPolyLine.h"
-#include "TBox.h"
-#include "TLatex.h"
-#include "TLine.h"
-#include "TPoint.h"
-#include <TStyle.h>
-#include <TF1.h>
-#include <TGraph.h>
-#include "TPolyMarker3D.h"
-
 namespace tkrec {
 
   Visu::Visu(const Geometry & geom_)
@@ -437,7 +415,7 @@ namespace tkrec {
     int object_counter = 0;
 
     // Drawing calorimeter
-    for(int omnum = 0; omnum < 651; omnum++) // 712
+    for(int omnum = 0; omnum < 712; omnum++) 
     {
       // Skipping calo hits
       bool is_hit = false;
@@ -489,20 +467,10 @@ namespace tkrec {
       }
       else // Gveto
       {
-      /*
-      // TODO DOES NOT WORK CORRECTLY! produces incorrect positions
         pos[0] = gvetoLocator.getXCoordOfColumn(SWCR[0], SWCR[1], SWCR[2]);	
         pos[1] = gvetoLocator.getYCoordOfColumn(SWCR[0], SWCR[1], SWCR[2]);
         pos[2] = gvetoLocator.getZCoordOfWall(SWCR[0], SWCR[1]);
-      */
-      // Does not work either
-       geomtools::vector_3d geom_pos = gvetoLocator.getBlockPosition(SWCR[0], SWCR[1], SWCR[2]);
-       pos[0] = geom_pos[0];
-       pos[1] = geom_pos[1];
-       pos[2] = geom_pos[2];
-       //std::cout << SWCR[0] << " " << SWCR[1] << " " << SWCR[2] << std::endl;
-       //std::cout << gvetoLocator.getXCoordOfColumn(SWCR[0], SWCR[1], SWCR[2]) << std::endl;
-      
+   
         calo = gGeoManager->MakeBox(Form("OM:%d.%d.%d.%d",
 			     SWCR[0],
 			     SWCR[1],
@@ -589,7 +557,6 @@ namespace tkrec {
       }
       else // Gveto
       {
-        /* Gveto locator does not work!!!
         pos[0] = gvetoLocator.getXCoordOfColumn(SWCR[0], SWCR[1], SWCR[2]);	
         pos[1] = gvetoLocator.getYCoordOfColumn(SWCR[0], SWCR[1], SWCR[2]);
         pos[2] = gvetoLocator.getZCoordOfWall(SWCR[0], SWCR[1]);
@@ -602,7 +569,6 @@ namespace tkrec {
 		       _geom_.gv_sizex / 2.0,
 		       _geom_.gv_sizey / 2.0,
 		       _geom_.gv_sizez / 2.0);
-      */
       }     
               
       TGeoHMatrix *trans = new TGeoHMatrix("Trans");
@@ -624,8 +590,12 @@ namespace tkrec {
     for(const auto & trhit : _event_->tracker_hits)
     {
       double radius = _geom_.tc_radius; // default value
-      double sigma_R = trhit->get_sigma_R();
-      double sigma_Z = trhit->get_sigma_Z();
+      double sigma_R = trhit->get_default_sigma_R();
+      double sigma_Z = trhit->get_default_sigma_R();
+      if(trhit->has_valid_Z())
+      {
+        sigma_Z = trhit->get_sigma_Z();
+      }
               
       if( trhit->has_valid_R() ) 
       {
@@ -651,7 +621,14 @@ namespace tkrec {
                       
       trans->SetDx( trhit->get_x() );
       trans->SetDy( trhit->get_y() );
-      trans->SetDz( trhit->get_Z() );
+      if( trhit->has_valid_Z() )
+      {
+        trans->SetDz( trhit->get_Z() );
+      }
+      else
+      {
+        trans->SetDz( 0.0 );
+      }
               
       if( !trhit->has_valid_R() )
       {

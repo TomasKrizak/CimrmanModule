@@ -43,45 +43,47 @@ namespace tkrec {
   struct ClusteringConfing
   {
     bool save_sinograms = false;
-    double max_distance = 3.0 * 44.0 * CLHEP::mm; 
+    double max_distance = 130.0 * CLHEP::mm; // 3.0 * 44.0 = 132
     double hit_association_distance = 6.0 * CLHEP::mm;
     uint32_t iterations = 2u;
     uint32_t resolution_phi = 100u; // No bins
     uint32_t resolution_r = 250u; // No bins
     double max_initial_precision_r = 6.0 * CLHEP::mm; 
     double zoom_factor = 10.0;
-    double uncertainty = 2.0 * CLHEP::mm;
+    double uncertainty = 3.0 * CLHEP::mm;
   };
 
   /// Config for kinked trajectory reconstruction algorithms
   struct PolylinesConfig
   {  
     double max_extention_distance = 120.0 * CLHEP::mm;  
-    double max_vertical_distance = 4.0 * CLHEP::mm; 
+    double max_vertical_distance = 40.0 * CLHEP::mm; 
     double min_tracker_hits_distance = 100.0 * CLHEP::mm; 
     double max_kink_angle = 120.0 * CLHEP::deg;
-    double max_trajectories_middlepoint_distance = 10.0 * CLHEP::mm; 
-    double max_trajectory_endpoints_distance = 75.0 * CLHEP::mm;
-    double max_trajectory_connection_angle = 50.0 * CLHEP::deg;
     double min_distance_from_foil = 75.0 * CLHEP::mm; 
-    double min_distance_from_main_walls = 0.0 * CLHEP::mm;
-    double min_distance_from_X_walls = 0.0 * CLHEP::mm;
+    double min_distance_from_main_walls = 40.0 * CLHEP::mm;
+    double min_distance_from_X_walls = 40.0 * CLHEP::mm;
+    
+    double max_trajectories_middlepoint_distance = 15.0 * CLHEP::mm; 
+    double max_trajectory_endpoints_distance = 75.0 * CLHEP::mm;
+    double max_trajectory_connection_angle = 40.0 * CLHEP::deg;
   };
   
   /// Config for kinked trajectory reconstruction algorithms
   struct AlphaConfig
   {  
     uint32_t clustering_resolution_phi = 100u; // No bins  
-    bool save_sinograms = false;
-    uint32_t resolution_r = 100u; // No bins
-    uint32_t iterations = 2u;
-    double phi_step = 0.5 * CLHEP::deg;
-    double delta_r = 60.0 * CLHEP::mm;
-    double time_step = 100.0 * CLHEP::ns; 
-    double uncertainty = 2.0 * CLHEP::mm;
     double min_possible_drift_time = 0.0 * CLHEP::ns; 
     double max_possible_drift_time = 5000.0 * CLHEP::ns; 
+    double time_step = 50.0 * CLHEP::ns; 
+
+    bool save_sinograms = false;
+    uint32_t iterations = 2u;
     double zoom_factor = 10.0;
+    double phi_step = 2.0 * CLHEP::deg;
+    uint32_t resolution_r = 30u; // No bins
+    double delta_r = 60.0 * CLHEP::mm;
+    double uncertainty = 2.0 * CLHEP::mm;
   };
 
   /// Configuration parameters for event tracking reconstruction
