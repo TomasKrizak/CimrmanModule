@@ -12,6 +12,10 @@ namespace tkrec {
  
   void CimrmanAlgoConfig::parse(const datatools::properties & config_)
   {
+    //=======================================================
+    //################## general algo config ################
+    //=======================================================
+  
     if (config_.has_key("verbosity")) {
       std::string verbosityLabel = config_.fetch_string("verbosity");
       auto parsedVerb = datatools::logger::get_priority(verbosityLabel);
@@ -20,6 +24,8 @@ namespace tkrec {
                   "Undefined verbosity label " << std::quoted(verbosityLabel));
       this->verbosity = parsedVerb;
     }
+
+    DT_LOG_DEBUG(this->verbosity, "Loading configuration...");
 
     if (config_.has_key("electron_mode")) {
       std::string elRecModeLabel = config_.fetch_string("electron_mode");
@@ -32,22 +38,27 @@ namespace tkrec {
     
     if (config_.has_flag("visualization_2D")) {
       this->visualization_2D = true;
+      DT_LOG_DEBUG(this->verbosity, "Saving 2D visualizations");
     }
     
     if (config_.has_flag("visualization_3D")) {
       this->visualization_3D = true;
+      DT_LOG_DEBUG(this->verbosity, "Saving 3D visualizations");
     }
     
     if (config_.has_flag("use_provided_preclustering")) {
       this->use_provided_preclustering = true;
+      DT_LOG_DEBUG(this->verbosity, "Using provided TCD bank");
     }
     
     if (config_.has_flag("reconstruct_alphas")) {
       this->reconstruct_alphas = true;
+      DT_LOG_DEBUG(this->verbosity, "Alpha tracking enabled");
     }
   
     if (config_.has_flag("force_default_sigma_r")) {
       this->force_default_sigma_r = true;
+      DT_LOG_DEBUG(this->verbosity, "Default sigma used");
     }
   
     if (config_.has_key("default_sigma_r")) {
@@ -59,9 +70,17 @@ namespace tkrec {
       this->default_sigma_r = value / CLHEP::mm;
     }
   
-    if (config_.has_flag("clustering.save_sinograms")) {
-      this->clustering.save_sinograms = true;
+    if (config_.has_key("chi_square_threshold")) {
+      this->chi_square_threshold =
+        config_.fetch_dimensionless_real("chi_square_threshold");
+      DT_THROW_IF(this->chi_square_threshold < 0.0,
+		              std::logic_error,
+		              "Invalid chi_square_threshold value");
     }
+  
+    //=======================================================
+    //############# Electron clustering config ##############
+    //=======================================================
   
     if (config_.has_key("clustering.max_distance")) {
       this->clustering.max_distance =
@@ -70,53 +89,175 @@ namespace tkrec {
       DT_THROW_IF(this->clustering.max_distance < 44.0 * CLHEP::mm,
 		              std::logic_error,
 		              "Invalid clustering.max_distance value");
+      DT_LOG_DEBUG(this->verbosity, "clustering.max_distance: " << this->clustering.max_distance << "mm");
     }
 
     if (config_.has_key("clustering.hit_association_distance")) {
       this->clustering.hit_association_distance =
         config_.fetch_real_with_explicit_dimension("clustering.hit_association_distance",
                                                    "length");
+      DT_LOG_DEBUG(this->verbosity, "clustering.hit_association_distance: " 
+                    << this->clustering.hit_association_distance << "mm");
     }
     
-    if (config_.has_key("clustering.iterations")) {
+    if (config_.has_flag("clustering.sinograms.save_sinograms")) {
+      this->clustering.save_sinograms = true;
+      DT_LOG_DEBUG(this->verbosity, "Clustering - saving sinograms");
+    }
+    
+    if (config_.has_key("clustering.sinograms.iterations")) {
       this->clustering.iterations =
-        config_.fetch_integer_scalar("clustering.iterations");
+        config_.fetch_integer_scalar("clustering.sinograms.iterations");
+      DT_LOG_DEBUG(this->verbosity, "clustering.sinograms.iterations: " 
+                                     << this->clustering.iterations);
     }
     
-    if (config_.has_key("clustering.resolution_phi")) {
+    if (config_.has_key("clustering.sinograms.zoom_factor")) {
+      this->clustering.zoom_factor =
+        config_.fetch_dimensionless_real("clustering.sinograms.zoom_factor");
+      DT_LOG_DEBUG(this->verbosity, "clustering.sinograms.zoom_factor: " 
+                                    << this->clustering.zoom_factor);
+    }
+    
+    if (config_.has_key("clustering.sinograms.resolution_phi")) {
       this->clustering.resolution_phi =
-        config_.fetch_integer_scalar("clustering.resolution_phi"); 
+        config_.fetch_integer_scalar("clustering.sinograms.resolution_phi");
+      DT_LOG_DEBUG(this->verbosity, "clustering.sinograms.resolution_phi: " 
+                                    << this->clustering.resolution_phi << " bins"); 
     }
     
-    if (config_.has_key("clustering.resolution_r")) {
+    if (config_.has_key("clustering.sinograms.resolution_r")) {
       this->clustering.resolution_r =
-        config_.fetch_integer_scalar("clustering.resolution_r"); 
+        config_.fetch_integer_scalar("clustering.sinograms.resolution_r"); 
+      DT_LOG_DEBUG(this->verbosity, "clustering.sinograms.resolution_r: " 
+                                    << this->clustering.resolution_r << " bins"); 
     }
 
-    if (config_.has_key("clustering.max_initial_precision_r")) {
-      this->clustering.max_initial_precision_r =
-        config_.fetch_real_with_explicit_dimension("clustering.max_initial_precision_r",
-                                                   "length");
-    }
-    
-    if (config_.has_key("clustering.zoom_factor")) {
-      this->clustering.zoom_factor =
-        config_.fetch_dimensionless_real("clustering.zoom_factor");
-    }
-    
-    if (config_.has_key("clustering.uncertainty")) {
+    if (config_.has_key("clustering.sinograms.uncertainty")) {
       this->clustering.uncertainty =
-        config_.fetch_real_with_explicit_dimension("clustering.uncertainty",
+        config_.fetch_real_with_explicit_dimension("clustering.sinograms.uncertainty",
                                                    "length");
+      DT_LOG_DEBUG(this->verbosity, "clustering.sinograms.uncertainty: " 
+                                    << this->clustering.uncertainty << "mm"); 
     }
     
-    if (config_.has_key("chi_square_threshold")) {
-      this->chi_square_threshold =
-        config_.fetch_dimensionless_real("chi_square_threshold");
-      DT_THROW_IF(this->chi_square_threshold < 1.0,
-		              std::logic_error,
-		              "Invalid chi_square_threshold value");
+    if (config_.has_key("clustering.sinograms.max_initial_precision_r")) {
+      this->clustering.max_initial_precision_r =
+        config_.fetch_real_with_explicit_dimension("clustering.sinograms.max_initial_precision_r",
+                                                   "length");
+      DT_LOG_DEBUG(this->verbosity, "clustering.sinograms.max_initial_precision_r: " 
+                                    << this->clustering.max_initial_precision_r << "mm"); 
+
     }
+    
+    ///=======================================================
+    ///############## alpha clustering config ################
+    ///=======================================================
+    
+    if (config_.has_key("alphas.clustering_resolution_phi")) {
+      this->alphas.clustering_resolution_phi =
+        config_.fetch_integer_scalar("alphas.clustering_resolution_phi");
+      DT_LOG_DEBUG(this->verbosity, "alphas.clustering_resolution_phi: " 
+                                    << this->alphas.clustering_resolution_phi << " bins"); 
+    }    
+    
+    if (config_.has_key("alphas.max_possible_drift_time")) {
+      this->alphas.max_possible_drift_time =
+        config_.fetch_real_with_explicit_dimension("alphas.max_possible_drift_time",
+                                                   "time");
+		  
+		  DT_THROW_IF(this->alphas.max_possible_drift_time < 100.0 * CLHEP::ns,
+		              std::logic_error,
+		              "Invalid alphas.max_possible_drift_time value - too strict"); 
+      DT_LOG_DEBUG(this->verbosity, "alphas.max_possible_drift_time: " 
+                                    << this->alphas.max_possible_drift_time << "ns");   
+    }
+    
+    if (config_.has_key("alphas.min_possible_drift_time")) {
+      this->alphas.min_possible_drift_time =
+        config_.fetch_real_with_explicit_dimension("alphas.min_possible_drift_time",
+                                                   "time");
+      DT_THROW_IF(this->alphas.min_possible_drift_time < 0.0 * CLHEP::ns,
+		              std::logic_error,
+		              "Invalid alphas.min_possible_drift_time value - negative time");   
+      DT_LOG_DEBUG(this->verbosity, "alphas.min_possible_drift_time: " 
+                                    << this->alphas.min_possible_drift_time << "ns"); 
+    }
+    
+    if (config_.has_key("alphas.time_step")) {
+      this->alphas.time_step =
+        config_.fetch_real_with_explicit_dimension("alphas.time_step",
+                                                   "time");
+      DT_THROW_IF(this->alphas.time_step < 10.0 * CLHEP::ns,
+		              std::logic_error,
+		              "Invalid alphas.time_step value - too small steps (too many steps)");   
+      DT_LOG_DEBUG(this->verbosity, "alphas.time_step: " 
+                                    << this->alphas.time_step << "ns"); 
+    }
+    
+    if (config_.has_flag("alphas.sinograms.save_sinograms")) {
+      this->alphas.save_sinograms = true;
+      DT_LOG_DEBUG(this->verbosity, "Alpha clustering - saving sinograms"); 
+    }
+    
+    if (config_.has_key("alphas.sinograms.iterations")) {
+      this->alphas.iterations =
+        config_.fetch_integer_scalar("alphas.sinograms.iterations");
+      DT_LOG_DEBUG(this->verbosity, "alphas.sinograms.iterations: " 
+                                    << this->alphas.iterations);
+    }
+    
+    if (config_.has_key("alphas.sinograms.zoom_factor")) {
+      this->alphas.zoom_factor =
+        config_.fetch_dimensionless_real("alphas.sinograms.zoom_factor");
+      DT_LOG_DEBUG(this->verbosity, "alphas.sinograms.zoom_factor: " 
+                                    << this->alphas.zoom_factor);
+    }
+    
+    if (config_.has_key("alphas.sinograms.phi_step")) {
+      this->alphas.phi_step =
+        config_.fetch_real_with_explicit_dimension("alphas.sinograms.phi_step",
+                                                   "angle");
+        
+      DT_THROW_IF(this->alphas.phi_step < 0.05 * CLHEP::deg,
+                 std::logic_error,
+		            "Invalid alphas.sinograms.phi_step value - too small");
+      DT_LOG_DEBUG(this->verbosity, "alphas.sinograms.phi_step: " 
+                                    << this->alphas.phi_step / CLHEP::deg << " degrees");
+    }
+    
+    if (config_.has_key("alphas.sinograms.delta_r")) {
+      this->alphas.delta_r =
+        config_.fetch_real_with_explicit_dimension("alphas.sinograms.delta_r",
+                                                   "length");
+      DT_THROW_IF(this->alphas.delta_r < 0.0 * CLHEP::mm,
+		              std::logic_error,
+		              "Invalid alphas.sinograms.delta_r value");
+      DT_LOG_DEBUG(this->verbosity, "alphas.sinograms.delta_r: " 
+                                    << this->alphas.delta_r << "mm");   
+    }
+    
+    if (config_.has_key("alphas.sinograms.resolution_r")) {
+      this->alphas.resolution_r =
+        config_.fetch_integer_scalar("alphas.sinograms.resolution_r"); 
+      DT_LOG_DEBUG(this->verbosity, "alphas.sinograms.resolution_r: " 
+                                    << this->alphas.resolution_r << " bins");  
+    }
+    
+    if (config_.has_key("alphas.sinograms.uncertainty")) {
+      this->alphas.uncertainty =
+        config_.fetch_real_with_explicit_dimension("alphas.sinograms.uncertainty",
+                                                   "length");
+      DT_THROW_IF(this->alphas.uncertainty < 0.0 * CLHEP::mm,
+		              std::logic_error,
+		              "Invalid alphas.sinograms.uncertainty value");   
+      DT_LOG_DEBUG(this->verbosity, "alphas.sinograms.uncertainty: " 
+                                    << this->alphas.uncertainty << "mm");  
+    }
+    
+    ///=======================================================
+    ///########## polyline reconstruction config #############
+    ///=======================================================
     
     if (config_.has_key("polylines.max_vertical_distance")) {
       this->polylines.max_vertical_distance =
@@ -125,6 +266,8 @@ namespace tkrec {
       DT_THROW_IF(this->polylines.max_vertical_distance < 0.0 * CLHEP::mm,
 	                std::logic_error,
 	                "Invalid polylines.max_vertical_distance value");
+      DT_LOG_DEBUG(this->verbosity, "polylines.max_vertical_distance: " 
+                                    << this->polylines.max_vertical_distance << "mm"); 
     }
     
     if (config_.has_key("polylines.max_extention_distance")) {
@@ -134,15 +277,19 @@ namespace tkrec {
       DT_THROW_IF(this->polylines.max_extention_distance < 0.0 * CLHEP::mm,
 		              std::logic_error,
 		              "Invalid polylines.max_extention_distance value");
+      DT_LOG_DEBUG(this->verbosity, "polylines.max_extention_distance: " 
+                                    << this->polylines.max_extention_distance << "mm"); 
     }
     
-    if (config_.has_key("polylines.min_tracker_hits_distance")) {
-      this->polylines.min_tracker_hits_distance =
-        config_.fetch_real_with_explicit_dimension("polylines.min_tracker_hits_distance",
+    if (config_.has_key("polylines.max_tracker_hits_distance")) {
+      this->polylines.max_tracker_hits_distance =
+        config_.fetch_real_with_explicit_dimension("polylines.max_tracker_hits_distance",
                                                    "length");
-      DT_THROW_IF(this->polylines.min_tracker_hits_distance < 0.0 * CLHEP::mm,
+      DT_THROW_IF(this->polylines.max_tracker_hits_distance < 0.0 * CLHEP::mm,
 		              std::logic_error,
-		              "Invalid polylines.min_tracker_hits_distance value");
+		              "Invalid polylines.max_tracker_hits_distance value");
+      DT_LOG_DEBUG(this->verbosity, "polylines.max_tracker_hits_distance: " 
+                                    << this->polylines.max_tracker_hits_distance << "mm"); 
     }
     
     if (config_.has_key("polylines.max_kink_angle")) {
@@ -153,6 +300,8 @@ namespace tkrec {
                 || this->polylines.max_kink_angle > 180.0 * CLHEP::deg,
 		            std::logic_error,
 		            "Invalid polylines.max_kink_angle value");
+      DT_LOG_DEBUG(this->verbosity, "polylines.max_kink_angle: " 
+                                    << this->polylines.max_kink_angle / CLHEP::deg << " degrees"); 
     }
     
     if (config_.has_key("polylines.max_trajectories_middlepoint_distance")) {
@@ -162,6 +311,8 @@ namespace tkrec {
       DT_THROW_IF(this->polylines.max_trajectories_middlepoint_distance < 0.0 * CLHEP::mm,
 		            std::logic_error,
 		            "Invalid polylines.max_trajectories_middlepoint_distance value");
+      DT_LOG_DEBUG(this->verbosity, "polylines.max_trajectories_middlepoint_distance: " 
+                                    << this->polylines.max_trajectories_middlepoint_distance << "mm"); 
     }
     
     if (config_.has_key("polylines.max_trajectory_endpoints_distance")) {
@@ -171,6 +322,8 @@ namespace tkrec {
       DT_THROW_IF(this->polylines.max_trajectory_endpoints_distance < 0.0 * CLHEP::mm,
 		              std::logic_error,
 		              "Invalid polylines.max_trajectory_endpoints_distance value");
+      DT_LOG_DEBUG(this->verbosity, "polylines.max_trajectory_endpoints_distance: " 
+                                    << this->polylines.max_trajectory_endpoints_distance << "mm"); 
     }
     
     if (config_.has_key("polylines.max_trajectory_connection_angle")) {
@@ -182,6 +335,8 @@ namespace tkrec {
                 || this->polylines.max_trajectory_connection_angle > 180.0 * CLHEP::deg,
 		            std::logic_error,
 		            "Invalid polylines.max_trajectory_connection_angle value");
+      DT_LOG_DEBUG(this->verbosity, "polylines.max_trajectory_connection_angle: " 
+                                    << this->polylines.max_trajectory_connection_angle / CLHEP::deg << " degrees");
     }
     
     if (config_.has_key("polylines.min_distance_from_foil")) {
@@ -190,7 +345,9 @@ namespace tkrec {
                                                    "length");
       DT_THROW_IF(this->polylines.min_distance_from_foil < 0.0 * CLHEP::mm,
 		              std::logic_error,
-		              "Invalid polylines.min_distance_from_foil value");   
+		              "Invalid polylines.min_distance_from_foil value"); 
+      DT_LOG_DEBUG(this->verbosity, "polylines.min_distance_from_foil: " 
+                                    << this->polylines.min_distance_from_foil << "mm");  
     }
     
     if (config_.has_key("polylines.min_distance_from_main_walls")) {
@@ -199,7 +356,9 @@ namespace tkrec {
                                                    "length");
       DT_THROW_IF(this->polylines.min_distance_from_main_walls < 0.0 * CLHEP::mm,
 		              std::logic_error,
-		              "Invalid polylines.min_distance_from_main_walls value");   
+		              "Invalid polylines.min_distance_from_main_walls value"); 
+      DT_LOG_DEBUG(this->verbosity, "polylines.min_distance_from_main_walls: " 
+                                    << this->polylines.min_distance_from_main_walls << "mm");   
     }
     
     if (config_.has_key("polylines.min_distance_from_X_walls")) {
@@ -208,87 +367,9 @@ namespace tkrec {
                                                    "length");
       DT_THROW_IF(this->polylines.min_distance_from_X_walls < 0.0 * CLHEP::mm,
 		              std::logic_error,
-		              "Invalid polylines.min_distance_from_X_walls value");   
-    }
-    
-    if (config_.has_key("alphas.clustering_resolution_phi")) {
-      this->alphas.clustering_resolution_phi =
-        config_.fetch_integer_scalar("alphas.clustering_resolution_phi");
-    }
-    
-    if (config_.has_flag("alphas.save_sinograms")) {
-      this->alphas.save_sinograms = true;
-    }
-    
-     if (config_.has_key("alphas.phi_step")) {
-      this->alphas.phi_step =
-        config_.fetch_real_with_explicit_dimension("alphas.phi_step",
-                                                   "angle");
-        
-      DT_THROW_IF(this->alphas.phi_step < 0.05 * CLHEP::deg,
-                 std::logic_error,
-		            "Invalid alphas.phi_step value - too small");
-    }
-    
-    if (config_.has_key("alphas.delta_r")) {
-      this->alphas.delta_r =
-        config_.fetch_real_with_explicit_dimension("alphas.delta_r",
-                                                   "length");
-      DT_THROW_IF(this->alphas.delta_r < 0.0 * CLHEP::mm,
-		              std::logic_error,
-		              "Invalid alphas.delta_r value");   
-    }
-    
-    if (config_.has_key("alphas.resolution_r")) {
-      this->alphas.resolution_r =
-        config_.fetch_integer_scalar("alphas.resolution_r"); 
-    }
-    
-    if (config_.has_key("alphas.time_step")) {
-      this->alphas.time_step =
-        config_.fetch_real_with_explicit_dimension("alphas.time_step",
-                                                   "time");
-      DT_THROW_IF(this->alphas.time_step < 10.0 * CLHEP::nm,
-		              std::logic_error,
-		              "Invalid alphas.time_step value - too small steps");   
-    }
-    
-    if (config_.has_key("alphas.uncertainty")) {
-      this->alphas.uncertainty =
-        config_.fetch_real_with_explicit_dimension("alphas.uncertainty",
-                                                   "length");
-      DT_THROW_IF(this->alphas.uncertainty < 0.0 * CLHEP::mm,
-		              std::logic_error,
-		              "Invalid alphas.uncertainty value");   
-    }
-    
-    if (config_.has_key("alphas.max_possible_drift_time")) {
-      this->alphas.max_possible_drift_time =
-        config_.fetch_real_with_explicit_dimension("alphas.max_possible_drift_time",
-                                                   "time");
-		  
-		  DT_THROW_IF(this->alphas.max_possible_drift_time < 100.0 * CLHEP::nm,
-		              std::logic_error,
-		              "Invalid alphas.max_possible_drift_time value - too strict");   
-    }
-    
-    if (config_.has_key("alphas.min_possible_drift_time")) {
-      this->alphas.min_possible_drift_time =
-        config_.fetch_real_with_explicit_dimension("alphas.min_possible_drift_time",
-                                                   "time");
-      DT_THROW_IF(this->alphas.min_possible_drift_time < 0.0 * CLHEP::nm,
-		              std::logic_error,
-		              "Invalid alphas.min_possible_drift_time value - negative time");   
-    }
-    
-    if (config_.has_key("alphas.iterations")) {
-      this->alphas.iterations =
-        config_.fetch_integer_scalar("alphas.iterations");
-    }
-    
-    if (config_.has_key("alphas.zoom_factor")) {
-      this->alphas.zoom_factor =
-        config_.fetch_dimensionless_real("alphas.zoom_factor");
+		              "Invalid polylines.min_distance_from_X_walls value");  
+      DT_LOG_DEBUG(this->verbosity, "polylines.min_distance_from_X_walls: " 
+                                    << this->polylines.min_distance_from_X_walls << "mm");  
     }
     
     return;
@@ -455,15 +536,15 @@ namespace tkrec {
 
     if (_visu_)
     {
-      auto & preclusters = _event_->get_preclusters();
-      int count_delayed = std::count_if(preclusters.begin(), preclusters.end(), [](const auto & precl){return precl->is_delayed();} );
-      if(_config_.visualization_2D && count_delayed > 0)
+      //auto & preclusters = _event_->get_preclusters();
+      //int count_delayed = std::count_if(preclusters.begin(), preclusters.end(), [](const auto & precl){return precl->is_delayed();} );
+      if(_config_.visualization_2D/* && count_delayed > 0*/)
       {
         DT_LOG_DEBUG(_config_.verbosity, "Creating and saving 2D visualizations");
         _visu_->make_top_projection();
       }
       
-      if(_config_.visualization_3D && count_delayed > 0)
+      if(_config_.visualization_3D/* && count_delayed > 0*/)
       {
         DT_LOG_DEBUG(_config_.verbosity, "Creating and saving 3D visualizations");
         _visu_->build_event();
@@ -1237,7 +1318,7 @@ namespace tkrec {
   std::vector<std::vector<TrackHdl>> Algos::find_polyline_candidates(std::vector<TrackHdl> & tracks, const int side) const
   {
     const double vertical_threshold           = _config_.polylines.max_vertical_distance;
-    const double min_distance                 = _config_.polylines.min_tracker_hits_distance;
+    const double max_distance                 = _config_.polylines.max_tracker_hits_distance;
     const double min_distance_from_foil       = _config_.polylines.min_distance_from_foil;
     const double min_distance_from_main_walls = _config_.polylines.min_distance_from_main_walls;
     const double min_distance_from_X_walls    = _config_.polylines.min_distance_from_X_walls;
@@ -1325,7 +1406,7 @@ namespace tkrec {
         bool match1_found = false;
         for(auto & association : track1->get_associations())
         {
-          if( distance_2D( kink_point_hdl, association.point) < min_distance )
+          if( distance_2D( kink_point_hdl, association.point) < max_distance )
           {
             match1_found = true;
             break;
@@ -1337,7 +1418,7 @@ namespace tkrec {
         bool match2_found = false;
         for(auto & association : track2->get_associations())
         {
-          if( distance_2D( kink_point_hdl, association.point) < min_distance )
+          if( distance_2D( kink_point_hdl, association.point) < max_distance )
           {
             match2_found = true;
             break;

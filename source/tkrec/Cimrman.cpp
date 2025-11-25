@@ -159,10 +159,20 @@ namespace tkrec {
       _config_.TTD_label = config_.fetch_string("TTD_label");
     }
  
-    // Extract properties with prefix 'eventrec.' :
     datatools::properties recParamConfig;
+    // Extract properties with prefix 'eventrec.' :
     config_.export_and_rename_starting_with(recParamConfig, "eventrec.", "");
+    
+    // Extract properties with prefix 'clustering.' :
+    config_.export_and_rename_starting_with(recParamConfig, "clustering.", "clustering.");
+    
+    // Extract properties with prefix 'alphas.' :
+    config_.export_and_rename_starting_with(recParamConfig, "alphas.", "alphas.");
+    
+    // Extract properties with prefix 'polylines.' :
+    config_.export_and_rename_starting_with(recParamConfig, "polylines.", "polylines.");
     _config_.recConfig.parse(recParamConfig);
+    
     return;
   }
 
@@ -205,7 +215,9 @@ namespace tkrec {
     _populate_working_event_(workItem);
     
     // Run Cimrman reconstruction process
+    DT_LOG_DEBUG(_config_.verbosity, "Reconstruction starting");
     _work_->palgo->process(_work_->event);	
+	  DT_LOG_DEBUG(_config_.verbosity, "Reconstruction finished \n");
 	
     // Create or reset TCD bank
     auto & the_tracker_clustering_data
@@ -390,7 +402,7 @@ namespace tkrec {
                                                   _work_->event.get_preclusters().end(),
                                                  [](const auto & precl){ return precl->is_delayed();} ) ); 
                                                  
-    DT_LOG_DEBUG(_config_.verbosity, "Working event has been populated \n");
+    DT_LOG_DEBUG(_config_.verbosity, "Working event has been populated\n");
     
     return;
   }

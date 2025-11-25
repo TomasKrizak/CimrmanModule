@@ -47,29 +47,13 @@ namespace tkrec {
     double hit_association_distance = 6.0 * CLHEP::mm;
     uint32_t iterations = 2u;
     uint32_t resolution_phi = 100u; // No bins
-    uint32_t resolution_r = 250u; // No bins
+    uint32_t resolution_r = 200u; // No bins
     double max_initial_precision_r = 6.0 * CLHEP::mm; 
     double zoom_factor = 10.0;
     double uncertainty = 3.0 * CLHEP::mm;
   };
 
-  /// Config for kinked trajectory reconstruction algorithms
-  struct PolylinesConfig
-  {  
-    double max_extention_distance = 120.0 * CLHEP::mm;  
-    double max_vertical_distance = 40.0 * CLHEP::mm; 
-    double min_tracker_hits_distance = 100.0 * CLHEP::mm; 
-    double max_kink_angle = 120.0 * CLHEP::deg;
-    double min_distance_from_foil = 75.0 * CLHEP::mm; 
-    double min_distance_from_main_walls = 40.0 * CLHEP::mm;
-    double min_distance_from_X_walls = 40.0 * CLHEP::mm;
-    
-    double max_trajectories_middlepoint_distance = 15.0 * CLHEP::mm; 
-    double max_trajectory_endpoints_distance = 75.0 * CLHEP::mm;
-    double max_trajectory_connection_angle = 40.0 * CLHEP::deg;
-  };
-  
-  /// Config for kinked trajectory reconstruction algorithms
+  /// Config for alpha clustering algorithms
   struct AlphaConfig
   {  
     uint32_t clustering_resolution_phi = 100u; // No bins  
@@ -86,6 +70,26 @@ namespace tkrec {
     double uncertainty = 2.0 * CLHEP::mm;
   };
 
+  /// Config for kinked trajectory reconstruction algorithms
+  struct PolylinesConfig
+  {  
+    // sharp kink reconstruction
+    double max_vertical_distance = 40.0 * CLHEP::mm; 
+    double max_tracker_hits_distance = 100.0 * CLHEP::mm; 
+    double max_kink_angle = 120.0 * CLHEP::deg;
+    double min_distance_from_foil = 75.0 * CLHEP::mm; 
+    double min_distance_from_main_walls = 50.0 * CLHEP::mm;
+    double min_distance_from_X_walls = 50.0 * CLHEP::mm;
+    
+    // clustering refinements
+    double max_extention_distance = 120.0 * CLHEP::mm;  
+
+    // small kink reconstruction
+    double max_trajectories_middlepoint_distance = 15.0 * CLHEP::mm; 
+    double max_trajectory_endpoints_distance = 75.0 * CLHEP::mm;
+    double max_trajectory_connection_angle = 40.0 * CLHEP::deg;
+  };
+  
   /// Configuration parameters for event tracking reconstruction
   struct CimrmanAlgoConfig
   {
@@ -100,13 +104,16 @@ namespace tkrec {
     double default_sigma_r = 2.0 * CLHEP::mm;
     double chi_square_threshold = 5.0; ///< dimensionless
 
-    // For electron reconstruction modes
-    ClusteringConfing clustering;      
-    PolylinesConfig polylines;
+    /// Configuration of clustering algorihtms
+    ClusteringConfing clustering;
+      
+    /// Configuration of alpha clustering algorihtms
     AlphaConfig alphas;
-
+      
+    /// Configuration of polyline reconstruction algorihtms 
+    PolylinesConfig polylines;
+  
     void parse(const datatools::properties & config_);
-    
   };
 
   /// Main cluster/track reconstruction class.

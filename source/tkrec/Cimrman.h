@@ -6,19 +6,6 @@
 #include <iomanip>
 
 // Interface from Falaise
-#include "bayeux/dpp/base_module.h"
-#include "bayeux/mctools/simulated_data.h"
-
-// Third party:
-// - Bayeux:
-#include <bayeux/datatools/clhep_units.h>
-#include <bayeux/datatools/logger.h>
-#include <bayeux/datatools/handle.h>
-#include <bayeux/datatools/exception.h>
-#include <bayeux/geomtools/line_3d.h>
-#include <bayeux/geomtools/polyline_3d.h>
-#include <bayeux/geomtools/box.h>
-
 #include <falaise/snemo/geometry/calo_locator.h>
 #include <falaise/snemo/geometry/gveto_locator.h>
 #include <falaise/snemo/geometry/xcalo_locator.h>
@@ -40,6 +27,18 @@
 #include "falaise/snemo/datamodels/particle_track_data.h"
 #include "falaise/snemo/services/geometry.h"
 #include "falaise/snemo/services/service_handle.h"
+
+// Third party:
+// - Bayeux:
+#include <bayeux/datatools/clhep_units.h>
+#include <bayeux/datatools/logger.h>
+#include <bayeux/datatools/handle.h>
+#include <bayeux/datatools/exception.h>
+#include <bayeux/geomtools/line_3d.h>
+#include <bayeux/geomtools/polyline_3d.h>
+#include <bayeux/geomtools/box.h>
+#include "bayeux/dpp/base_module.h"
+#include "bayeux/mctools/simulated_data.h"
 
 // Cimrman headers
 #include "tkrec/Event.h"
@@ -70,7 +69,6 @@ namespace tkrec {
       
       /// Configuration of the Cimrman reconstruct algorihtms (from Algos.h)
       CimrmanAlgoConfig recConfig;
-      
     };
     
     ////////////////////////////////////////////////
