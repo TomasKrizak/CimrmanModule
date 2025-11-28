@@ -525,14 +525,26 @@ namespace tkrec {
        DT_LOG_DEBUG(_config_.verbosity, "Step 5: Creating line trajectories (alpha trajectories)");
       create_line_trajectories( alpha );
     }
-
+  
     // step 6
-    DT_LOG_DEBUG(_config_.verbosity, "Step 6: Trajectory refinement");
-    refine_trajectories();
+    if (_config_.electron_mode == ElectronRecMode::polyline)
+    {
+      DT_LOG_DEBUG(_config_.verbosity, "Step 6: Trajectory kinks and clustering refinements");
+      refinements();
+    }
+    else
+    {
+      DT_LOG_DEBUG(_config_.verbosity, "Skipping step 6: not available for line trajectories");
+    }
 
     // step 7
-    DT_LOG_DEBUG(_config_.verbosity, "Step 7: Combining precluster solutions into all solutions");
+    DT_LOG_DEBUG(_config_.verbosity, "Step 7: Evaluating trajectories");
+    evaluate_trajectories();
+
+    // step 8
+    DT_LOG_DEBUG(_config_.verbosity, "Step 8: Combining precluster solutions into all solutions");
     create_solutions();
+
 
     if (_visu_)
     {
@@ -1514,10 +1526,9 @@ namespace tkrec {
     double norm1 = std::hypot(vec1.x, vec1.y, vec1.z);
     double norm2 = std::hypot(vec2.x, vec2.y, vec2.z);
     angle /= (norm1 * norm2);
+    
     angle = std::max(-1.0, std::min(1.0, angle));
-    angle = std::acos(angle);
-    //angle = angle * 180.0 / M_PI;
-    return angle;
+    return std::acos(angle);
   } 
   
   // takes a trajectory with multiple track segments and calculates the kink points and end points 
@@ -1712,7 +1723,7 @@ namespace tkrec {
   // master function of step 6
   //  - clustering refinement, trajectory connecting, fit quality calculation
   //  - Potentially maximum likelihood refinement of the polyline fits...
-  void Algos::refine_trajectories()
+  void Algos::refinements()
   { 
   	// refining electron tracks
     for(auto & precluster : _event_->get_preclusters())
@@ -1744,116 +1755,8 @@ namespace tkrec {
           }
         }
       }
-      
-      // evaluating electron and alpha tracks
-      for(auto & precluster_solution : precluster->get_precluster_solutions())
-      {
-        // calculating all fit quality metrics
-        for(auto & trajectory : precluster_solution->get_trajectories())
-        {
-          evaluate_trajectory(trajectory);
-        }
-      }
-    }
-    return;
-  }
-  
-  // calculates mean square errors and chi squares of trajectories
-  void Algos::evaluate_trajectory(TrajectoryHdl & trajectory)
-  {   
-    double chi_squared = 0.0;
-    double chi_squared_R = 0.0;
-    double chi_squared_Z = 0.0;
+    }  
     
-    double MSE = 0.0;
-    double MSE_R = 0.0;
-    double MSE_Z = 0.0;
-  
-    // number of measurements of R and Z used in the fit
-    int no_R = 0;
-    int no_Z = 0;
-    
-    // degrees of freedom
-    int DOF_R = 0;
-    int DOF_Z = 1;
-    
-    for(auto & segment : trajectory->get_segments())
-    {
-      segment->evaluate();
-      
-      const auto & associations = segment->get_associations();
-      int no_R_seg = std::count_if(associations.begin(),
-                           associations.end(),
-                           [](const Association & association){
-                             return association.tracker_hit->has_valid_R();
-                           });
-      no_R += no_R_seg;   
-      int no_Z_seg = std::count_if(associations.begin(),
-                           associations.end(),
-                           [](const Association & association){
-                             return association.tracker_hit->has_valid_Z();
-                           });  
-      no_Z += no_Z_seg;
-      
-      MSE_R += segment->get_square_error_R();
-      MSE_Z += segment->get_square_error_Z();  
-                    
-      chi_squared_R += segment->get_chi_squared_R();
-      chi_squared_Z += segment->get_chi_squared_Z();
-      
-      DOF_R += 2;
-      DOF_Z += 1;
-    }
-    MSE = (MSE_R + MSE_Z);
-    chi_squared = (chi_squared_R + chi_squared_Z);
-    
-    // mean square error is the sum of square errors of all segments divided by the number of measurements
-    MSE_R = MSE_R / double(no_R);
-    if(no_Z == 0)
-    {
-    	MSE_Z = datatools::invalid_real();
-    }
-    else
-    {
-      MSE_Z = MSE_Z / double(no_Z);
-    }
-    MSE = MSE / double(no_R + no_Z);
-    
-    // chi_squared is the sum of chi_squares of all segments divided by number of measurement - DOF
-    if(no_R - DOF_R > 0)
-    {
-      chi_squared_R = chi_squared_R / double(no_R - DOF_R);    
-    }
-    else
-    {
-      chi_squared_R = datatools::invalid_real();
-    }
-    
-    if(no_Z - DOF_Z > 0)
-    {
-      chi_squared_Z = chi_squared_Z / double(no_Z - DOF_Z);
-    }
-    else
-    {
-      chi_squared_Z = datatools::invalid_real();
-    }
-    
-    if(no_R + no_Z - DOF_R - DOF_Z > 0)
-    {
-      chi_squared = chi_squared / double(no_R + no_Z - DOF_R - DOF_Z);    
-    }
-    else
-    {
-      chi_squared_Z = datatools::invalid_real();
-    }
-
-    trajectory->set_MSE( MSE );
-    trajectory->set_MSE_R( MSE_R );
-    trajectory->set_MSE_Z( MSE_Z );
-    
-    trajectory->set_chi_squared( chi_squared );
-    trajectory->set_chi_squared_R( chi_squared_R );
-    trajectory->set_chi_squared_Z( chi_squared_Z );
     return;
   }
   
@@ -1869,9 +1772,9 @@ namespace tkrec {
   // connecting very close trajectories with small angles
   void Algos::connect_close_trajectories(PreclusterSolutionHdl & precluster_solution)
   {
-    const double distance_threshold = _config_.polylines.max_trajectories_middlepoint_distance;
+    const double distance_threshold             = _config_.polylines.max_trajectories_middlepoint_distance;
     const double trajectory_connection_distance = _config_.polylines.max_trajectory_endpoints_distance;
-    const double max_angle = _config_.polylines.max_trajectory_connection_angle;
+    const double max_angle                      = _config_.polylines.max_trajectory_connection_angle;
     
     auto i = 0u;
     auto & trajectories = precluster_solution->get_trajectories(); 
@@ -1892,7 +1795,7 @@ namespace tkrec {
           Point middle_point = get_middle_point(*point1, *point2);
           double angle = M_PI - calculate_angle(*trajectory_points1[1],
                                                  middle_point,
-                                                 *trajectory_points2[1]);
+                                                *trajectory_points2[1]);
           if(angle < max_angle)
           {
             TrackHdl segment1 = trajectories[i]->get_segments().front();
@@ -1933,7 +1836,7 @@ namespace tkrec {
           Point middle_point = get_middle_point(*point1, *point2);
           double angle = M_PI - calculate_angle(*trajectory_points1[1] ,
                                                  middle_point,
-                                                 *trajectory_points2[trajectory_points2.size()-1]);
+                                                 *trajectory_points2[trajectory_points2.size()-2]);
           if(angle < max_angle)
           {
             TrackHdl segment1 = trajectories[i]->get_segments().front();
@@ -1973,8 +1876,8 @@ namespace tkrec {
         distance = distance_3D(point1, point2); 
         if( distance < trajectory_connection_distance )
         {
-         Point middle_point = get_middle_point(*point1, *point2);
-          double angle = M_PI - calculate_angle(*trajectory_points1[trajectory_points1.size()-1] ,
+          Point middle_point = get_middle_point(*point1, *point2);
+          double angle = M_PI - calculate_angle(*trajectory_points1[trajectory_points1.size()-2] ,
                                                  middle_point,
                                                  *trajectory_points2[1]);
           if(angle < max_angle)
@@ -2014,9 +1917,10 @@ namespace tkrec {
         if( distance < trajectory_connection_distance )
         {
           Point middle_point = get_middle_point(*point1, *point2);
-          double angle = M_PI - calculate_angle(*trajectory_points1[trajectory_points1.size()-1] ,
+          
+          double angle = M_PI - calculate_angle(*trajectory_points1[trajectory_points1.size()-2],
                                                   middle_point,
-                                                 *trajectory_points2[trajectory_points2.size()-1]);
+                                                 *trajectory_points2[trajectory_points2.size()-2]);
           if(angle < max_angle)
           {
             TrackHdl segment1 = trajectories[i]->get_segments().back();
@@ -2277,10 +2181,135 @@ namespace tkrec {
     return;
   }
   
-  
 //____________________________________________________________________________
 //////////////////////////////////////////////////////////////////////////////
-//// step 7: Combining precluster solutions into all solutions ///////////////
+//// step 7: Trajectory refinement ///////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+    
+  // master function of step 7
+  //  - fit quality calculation
+  void Algos::evaluate_trajectories()
+  { 
+  	// refining electron tracks
+    for(auto & precluster : _event_->get_preclusters())
+    {
+      // evaluating electron and alpha tracks
+      for(auto & precluster_solution : precluster->get_precluster_solutions())
+      {
+        // calculating all fit quality metrics
+        for(auto & trajectory : precluster_solution->get_trajectories())
+        {
+          evaluate_trajectory(trajectory);
+        }
+      }
+    }
+
+    return;
+  }
+  
+  // calculates mean square errors and chi squares of trajectories
+  void Algos::evaluate_trajectory(TrajectoryHdl & trajectory)
+  {   
+    double chi_squared = 0.0;
+    double chi_squared_R = 0.0;
+    double chi_squared_Z = 0.0;
+    
+    double MSE = 0.0;
+    double MSE_R = 0.0;
+    double MSE_Z = 0.0;
+  
+    // number of measurements of R and Z used in the fit
+    int no_R = 0;
+    int no_Z = 0;
+    
+    // degrees of freedom
+    int DOF_R = 0;
+    int DOF_Z = 1;
+    
+    for(auto & segment : trajectory->get_segments())
+    {
+      segment->evaluate();
+      
+      const auto & associations = segment->get_associations();
+      int no_R_seg = std::count_if(associations.begin(),
+                           associations.end(),
+                           [](const Association & association){
+                             return association.tracker_hit->has_valid_R();
+                           });
+      no_R += no_R_seg;   
+      int no_Z_seg = std::count_if(associations.begin(),
+                           associations.end(),
+                           [](const Association & association){
+                             return association.tracker_hit->has_valid_Z();
+                           });  
+      no_Z += no_Z_seg;
+      
+      MSE_R += segment->get_square_error_R();
+      MSE_Z += segment->get_square_error_Z();  
+                    
+      chi_squared_R += segment->get_chi_squared_R();
+      chi_squared_Z += segment->get_chi_squared_Z();
+      
+      DOF_R += 2;
+      DOF_Z += 1;
+    }
+    MSE = (MSE_R + MSE_Z);
+    chi_squared = (chi_squared_R + chi_squared_Z);
+    
+    // mean square error is the sum of square errors of all segments divided by the number of measurements
+    MSE_R = MSE_R / double(no_R);
+    if(no_Z == 0)
+    {
+    	MSE_Z = datatools::invalid_real();
+    }
+    else
+    {
+      MSE_Z = MSE_Z / double(no_Z);
+    }
+    MSE = MSE / double(no_R + no_Z);
+    
+    // chi_squared is the sum of chi_squares of all segments divided by number of measurement - DOF
+    if(no_R - DOF_R > 0)
+    {
+      chi_squared_R = chi_squared_R / double(no_R - DOF_R);    
+    }
+    else
+    {
+      chi_squared_R = datatools::invalid_real();
+    }
+    
+    if(no_Z - DOF_Z > 0)
+    {
+      chi_squared_Z = chi_squared_Z / double(no_Z - DOF_Z);
+    }
+    else
+    {
+      chi_squared_Z = datatools::invalid_real();
+    }
+    
+    if(no_R + no_Z - DOF_R - DOF_Z > 0)
+    {
+      chi_squared = chi_squared / double(no_R + no_Z - DOF_R - DOF_Z);    
+    }
+    else
+    {
+      chi_squared_Z = datatools::invalid_real();
+    }
+
+    trajectory->set_MSE( MSE );
+    trajectory->set_MSE_R( MSE_R );
+    trajectory->set_MSE_Z( MSE_Z );
+    
+    trajectory->set_chi_squared( chi_squared );
+    trajectory->set_chi_squared_R( chi_squared_R );
+    trajectory->set_chi_squared_Z( chi_squared_Z );
+    return;
+  } 
+    
+
+//____________________________________________________________________________
+//////////////////////////////////////////////////////////////////////////////
+//// step 8: Combining precluster solutions into all solutions ///////////////
 //////////////////////////////////////////////////////////////////////////////
 
   // master function of step 7

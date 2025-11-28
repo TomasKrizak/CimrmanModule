@@ -86,7 +86,7 @@ namespace tkrec {
 
     // small kink reconstruction
     double max_trajectories_middlepoint_distance = 15.0 * CLHEP::mm; 
-    double max_trajectory_endpoints_distance = 75.0 * CLHEP::mm;
+    double max_trajectory_endpoints_distance = 100.0 * CLHEP::mm;
     double max_trajectory_connection_angle = 40.0 * CLHEP::deg;
   };
   
@@ -185,15 +185,17 @@ namespace tkrec {
                                    TrajectoryHdl & trajectory);    
                                    
 
-    // step 6: Trajectory refinement (MLM, clustering refinement...)
-    void refine_trajectories();
-    void connect_close_trajectories(PreclusterSolutionHdl & precluster_solution);
+    // step 6: Trajectory kinks and clustering refinements
+    void refinements();
     void remove_wrong_hits_associations(PreclusterSolutionHdl & precluster_solution, TrajectoryHdl & trajectory);
+    void connect_close_trajectories(PreclusterSolutionHdl & precluster_solution);
     void refine_clustering(PreclusterSolutionHdl & precluster_solution);
+    
+    // step 7: Evaluating trajectories
+    void evaluate_trajectories();
     void evaluate_trajectory(TrajectoryHdl & trajectory);
     
-    
-    // step 7: Combining precluster solutions into all solutions
+    // step 8: Combining precluster solutions into all solutions
     void create_solutions();
     void sort_solutions(std::vector<SolutionHdl> & solutions);
                    
