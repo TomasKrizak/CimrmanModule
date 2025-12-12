@@ -188,12 +188,27 @@ namespace tkrec {
     // Instantiate the PIMPL working material:
     _work_ = std::make_unique<pimpl_type>(*this);
  
+    //XXX testing - remove later
+    //clustering_solutions = TH1I("clustering_solutions", "clustering_solutions", 33, -0.5, 32.5);
+    //trajectory_solutions = TH1I("trajectory_solutions", "trajectory_solutions", 33, -0.5, 32.5);
+ 
     this->_set_initialized(true);
     return;
   }
 
   void Cimrman::reset() 
   {   
+    //XXX testing - remove later
+    /*
+    TCanvas canvas("solutions", "solutions", 1000, 800);
+    canvas.cd();
+    clustering_solutions.Draw();
+    canvas.SaveAs("clustering_solutions.png");
+    trajectory_solutions.Draw();
+    canvas.SaveAs("trajectory_solutions.png");
+    canvas.Close();    
+    */
+  
     DT_THROW_IF(!is_initialized(), std::logic_error,
 		"Module '" << get_name() << "' is not initialized !");
     this->_set_initialized(false);
@@ -238,6 +253,12 @@ namespace tkrec {
 
     // removing duplicate clustering solutions and fixing their connections to trajectory solutions
     _remove_duplicate_clustering_solutions_(the_tracker_clustering_data, the_tracker_trajectory_data);
+
+
+    //XXX testing - remove later
+    //clustering_solutions.Fill( the_tracker_clustering_data.solutions().size() );
+    //trajectory_solutions.Fill( the_tracker_trajectory_data.get_solutions().size() );
+
 
     return falaise::processing::status::PROCESS_OK;
   }

@@ -39,6 +39,45 @@ namespace tkrec {
     return all_trajectories;
   }
 
+  void Solution::set_num_of_trajectories(unsigned int no_trajectories)
+  {
+    num_of_trajectories = no_trajectories;
+  }
+  
+  void Solution::set_num_of_segments(unsigned int no_segments)
+  {
+    num_of_segments = no_segments;
+  }
+  
+  void Solution::set_num_of_unclustered_hit(unsigned int no_unclustered_hit)
+  {
+    num_of_unclustered_hit = no_unclustered_hit;
+  }
+  
+  void Solution::set_total_summed_chi2(double chi2_sum)
+  {
+    total_summed_chi2 = chi2_sum;
+  }
+  
+  unsigned int Solution::get_num_of_trajectories() const
+  {
+    return num_of_trajectories;
+  }
+  
+  unsigned int Solution::get_num_of_segments() const
+  {
+    return num_of_segments;
+  }
+  
+  unsigned int Solution::get_num_of_unclustered_hit() const
+  {
+    return num_of_unclustered_hit;
+  }
+  
+  double Solution::get_total_summed_chi2() const
+  {
+    return total_summed_chi2;
+  }
 
   void Solution::print(std::ostream & out_) const
   {

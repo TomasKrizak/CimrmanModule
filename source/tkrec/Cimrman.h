@@ -45,6 +45,10 @@
 #include "tkrec/Geometry.h"
 #include "tkrec/Algos.h"
 
+// Root:
+//#include <TH2F.h>
+//#include <TCanvas.h>
+
 namespace tkrec {
 
   /// Main event reconstruction module
@@ -128,6 +132,10 @@ namespace tkrec {
     std::unique_ptr<pimpl_type> _work_; ///< Embedded resources (data and algo)
     
     DPP_MODULE_REGISTRATION_INTERFACE(Cimrman)
+    
+    //XXX testing - remove later
+    //TH1I clustering_solutions; 
+    //TH1I trajectory_solutions;
     
   };
   

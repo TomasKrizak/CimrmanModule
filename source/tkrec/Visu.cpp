@@ -179,7 +179,7 @@ namespace tkrec {
             }
           }
 
-          if( hit->has_valid_R() )
+          if( hit->has_valid_Z() )
           {
             has_height = true;
           }    

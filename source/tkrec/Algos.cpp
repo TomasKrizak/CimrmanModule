@@ -55,6 +55,11 @@ namespace tkrec {
       this->reconstruct_alphas = true;
       DT_LOG_DEBUG(this->verbosity, "Alpha tracking enabled");
     }
+    
+    if (config_.has_flag("keep_only_best_solutions")) {
+      this->keep_only_best_solutions = true;
+      DT_LOG_DEBUG(this->verbosity, "Keeping only best solutions");
+    }
   
     if (config_.has_flag("force_default_sigma_r")) {
       this->force_default_sigma_r = true;
@@ -544,7 +549,6 @@ namespace tkrec {
     // step 8
     DT_LOG_DEBUG(_config_.verbosity, "Step 8: Combining precluster solutions into all solutions");
     create_solutions();
-
 
     if (_visu_)
     {
@@ -2311,9 +2315,30 @@ namespace tkrec {
 //////////////////////////////////////////////////////////////////////////////
 //// step 8: Combining precluster solutions into all solutions ///////////////
 //////////////////////////////////////////////////////////////////////////////
-
-  // master function of step 7
+  
+  bool compare_solutions(const SolutionHdl solution1, const SolutionHdl solution2);
+  
+  // master function of step 8
   void Algos::create_solutions()
+  {
+    // creating all unique combinations of all precluster solutions
+    combine_precluster_solutions_into_solutions();
+    
+    // calculates some quality indicators of the solutions
+    evaluate_solutions();
+        
+    // putting better solutions at the front (custom compare function) 
+    auto & solutions = _event_->get_solutions();
+    std::sort(solutions.begin(), solutions.end(), compare_solutions); 
+    
+    // removing suboptimal solutions from the collection
+    if( _config_.keep_only_best_solutions )
+    {
+      remove_suboptimal_solutions();
+    }
+  }
+  
+  void Algos::combine_precluster_solutions_into_solutions()
   {
     // caluclating needed number of solutions
     int no_solutions = 1;
@@ -2356,72 +2381,103 @@ namespace tkrec {
         }
       }
     }
-    
-    // sorts the solutions based on overall reconstruction qualities
-    // better solutions are first (preliminary)
-    sort_solutions(solutions);
-
-    // TODO: possible to add solution discard criteria 
-    
-    return;
   }
   
   bool compare_solutions(const SolutionHdl solution1, const SolutionHdl solution2)
   {
-    int no_trajectories1 = 0;
-    int no_segments1 = 0;
-    int no_unclustered_hit1 = 0;
-    double chi2_sum1 = 0.0;
+    //TODO not sure how exactly shoudl this work
+    
+    // 1. criteria: total number of identified linear segments
+    // (more succesull fits -> better)
+    unsigned int no_segments1 = solution1->get_num_of_segments();
+    unsigned int no_segments2 = solution2->get_num_of_segments();
+    if( no_segments1 != no_segments2 )
+    {
+      return (no_segments1 > no_segments2);
+    }
+    
+    // 2. criteria: total number of trajectories 
+    // (less trajectories -> more connected -> better)
+    unsigned int no_trajectories1 = solution1->get_num_of_trajectories();
+    unsigned int no_trajectories2 = solution2->get_num_of_trajectories();
+    if( no_trajectories1 != no_trajectories2 )
+    {
+      return (no_trajectories1 < no_trajectories2);
+    }
+    
+    // 3. criteria: total number of unclustered hits
+    // (less unclustered hits -> better)
+    unsigned int no_unclustered_hit1 = solution1->get_num_of_unclustered_hit();
+    unsigned int no_unclustered_hit2 = solution2->get_num_of_unclustered_hit();
+    if( no_unclustered_hit1 != no_unclustered_hit2 ) 
+    {
+      return (no_unclustered_hit1 < no_unclustered_hit2);
+    }
 
-    for(const auto & precluster_solution : solution1->get_precluster_solutions())
-    {
-      const auto & trajectories = precluster_solution->get_trajectories();
-      no_trajectories1 += trajectories.size();
-      for(const auto & trajectory : trajectories)
-      {
-        no_segments1 += trajectory->get_segments().size();
-        chi2_sum1 += trajectory->get_chi_squared();
-      }
-      no_unclustered_hit1 += precluster_solution->get_unclustered_tracker_hits().size();
-    }
-    
-    int no_trajectories2 = 0;
-    int no_segments2 = 0;
-    int no_unclustered_hit2 = 0;
-    double chi2_sum2 = 0.0;
-    
-    for(const auto & precluster_solution : solution2->get_precluster_solutions())
-    {
-      auto & trajectories = precluster_solution->get_trajectories();
-      no_trajectories2 += trajectories.size();
-      for(const auto & trajectory : trajectories)
-      {
-        no_segments2 += trajectory->get_segments().size();
-        chi2_sum2 += trajectory->get_chi_squared();
-      }
-      no_unclustered_hit2 += precluster_solution->get_unclustered_tracker_hits().size();
-    }
-    
-    //TODO how shoudl this work?
-    if( no_segments1 == no_segments2 )
-    {
-      if( no_trajectories1 == no_trajectories2 )
-      {
-        return (chi2_sum2 > chi2_sum1); 
-      }
-      return (no_trajectories2 > no_trajectories1);
-    }
-    else
-    {
-      return (no_segments1 < no_segments2);
-    }
+    // 4. criteria: total summed chi2 of the fits
+    // (lower total chi2 -> better)
+    double chi2_summed1 = solution1->get_total_summed_chi2();
+    double chi2_summed2 = solution2->get_total_summed_chi2();
+    return (chi2_summed1 < chi2_summed2);
+  
   }
   
-  
-  void Algos::sort_solutions(std::vector<SolutionHdl> & solutions)
+  // calculating overall reconstruction qualities
+  void Algos::evaluate_solutions()
   {
-    std::sort(solutions.begin(), solutions.end(), compare_solutions); 
+    auto & solutions = _event_->get_solutions();
+    for(auto & solution : solutions)
+    {
+      unsigned int no_trajectories = 0;
+      unsigned int no_segments = 0;
+      unsigned int no_unclustered_hit = 0;
+      double chi2_sum = 0.0;
+      
+      for(const auto & precluster_solution : solution->get_precluster_solutions())
+      {
+        const auto & trajectories = precluster_solution->get_trajectories();
+        no_trajectories += trajectories.size();
+        for(const auto & trajectory : trajectories)
+        {
+          no_segments += trajectory->get_segments().size();
+          chi2_sum += trajectory->get_chi_squared();
+        }
+        no_unclustered_hit += precluster_solution->get_unclustered_tracker_hits().size();
+      }
+      
+      solution->set_num_of_trajectories( no_trajectories );
+      solution->set_num_of_segments( no_segments );
+      solution->set_num_of_unclustered_hit( no_unclustered_hit );
+      solution->set_total_summed_chi2( chi2_sum );
+    }
   }
+  
+  // deletes solutions with not fully connected trajectories
+  void Algos::remove_suboptimal_solutions()
+  {
+    auto & solutions = _event_->get_solutions();
+    if( solutions.size() < 2 ) return;
+    
+    // solutions are order based on the number of segments (more -> better)
+    unsigned int min_num_of_segments = solutions.front()->get_num_of_segments();
+    auto first_suboptimal_sol = std::find_if(solutions.begin()+1, solutions.end(),
+                        [min_num_of_segments](auto& sol){ 
+                          return (sol->get_num_of_segments() < min_num_of_segments);
+                        } );
+    solutions.erase(first_suboptimal_sol, solutions.end());
+    
+   
+    // solutions are order based on the number of trajectories (fewer the better)
+    unsigned int max_num_of_trajectories = solutions.front()->get_num_of_trajectories();
+    first_suboptimal_sol = std::find_if(solutions.begin()+1, solutions.end(),
+                    [max_num_of_trajectories](auto& sol){ 
+                      return (sol->get_num_of_trajectories() > max_num_of_trajectories);
+                    } );
+    solutions.erase(first_suboptimal_sol, solutions.end());
+    
+    // TODO: can be expanded to have more strict pruning
+  }
+  
 
 //____________________________________________________________________________
 //////////////////////////////////////////////////////////////////////////////

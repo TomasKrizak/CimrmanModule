@@ -7,10 +7,6 @@
 #include <vector>
 #include <stack>
 
-// Root:
-#include <TH2F.h>
-#include <TCanvas.h>
-
 // Boost:
 #include <boost/multi_array.hpp>
 
@@ -100,6 +96,7 @@ namespace tkrec {
     bool visualization_3D = false;
     bool use_provided_preclustering = false;
     bool reconstruct_alphas = false;
+    bool keep_only_best_solutions = false;
     bool force_default_sigma_r = false; ///< Flag to force the default sigma r value for tracker hits
     double default_sigma_r = 2.0 * CLHEP::mm;
     double chi_square_threshold = 5.0; ///< dimensionless
@@ -197,8 +194,10 @@ namespace tkrec {
     
     // step 8: Combining precluster solutions into all solutions
     void create_solutions();
-    void sort_solutions(std::vector<SolutionHdl> & solutions);
-                   
+    void combine_precluster_solutions_into_solutions();
+    void evaluate_solutions();
+    void remove_suboptimal_solutions();
+    
 
   private:
 
