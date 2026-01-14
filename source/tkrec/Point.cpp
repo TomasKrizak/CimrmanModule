@@ -1,6 +1,9 @@
 // Cimrman headers
 #include "tkrec/Point.h"
 
+// Standard headers
+#include <cmath>
+
 // ClassImp(tkrec::Point);
 
 namespace tkrec {

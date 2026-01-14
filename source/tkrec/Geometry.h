@@ -1,6 +1,7 @@
 #ifndef FALAISE_CIMRMAN_GEOMETRY_H
 #define FALAISE_CIMRMAN_GEOMETRY_H
 
+// Falaise headers
 #include <falaise/snemo/geometry/calo_locator.h>
 #include <falaise/snemo/geometry/gveto_locator.h>
 #include <falaise/snemo/geometry/xcalo_locator.h>

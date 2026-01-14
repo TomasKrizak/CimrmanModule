@@ -1,12 +1,14 @@
 // Cimrman headers
 #include "tkrec/DelayedCluster.h"
+#include "tkrec/TrackerHit.h"
 
 // Standard library:
 #include <limits> // infinity
 #include <cmath> // isnan
 #include <numeric> // accumulate
 
-#include <datatools/exception.h>
+// Bayeux headers
+#include "datatools/exception.h"
 
 namespace tkrec {
 
@@ -82,7 +84,6 @@ namespace tkrec {
     return reference_time_max;
   }
 
-  
   void DelayedCluster::set_reference_time(double _reference_time)
   {
     reference_time = _reference_time;

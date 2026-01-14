@@ -4,16 +4,20 @@
 // Standard headers
 #include <iostream>
 #include <memory>
-#include <math.h>
+#include <vector>
 
+// Bayeux headers
 #include <datatools/utils.h>
-
 
 namespace tkrec {
 
-  // forward definition of Cluster to resolve circular dependacy
+  // forward definitions
   class Cluster;
   using ConstClusterHdl = std::shared_ptr<const Cluster>;
+  
+  class TrackerHit;
+  using TrackerHitHdl = std::shared_ptr<TrackerHit>;
+
 
   struct Likelihood
   {	
@@ -62,6 +66,7 @@ namespace tkrec {
 
     Likelihood() = default;
     Likelihood(ConstClusterHdl & cluster);
+    Likelihood(const std::vector<TrackerHitHdl> & hits, std::vector<bool> & signs);
     
     double log_likelihood_value(double phi) const;
     double log_likelihood_derivative(double phi) const;

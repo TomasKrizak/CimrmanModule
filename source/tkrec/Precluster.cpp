@@ -1,11 +1,16 @@
+// Cimrman headers
+#include "tkrec/Precluster.h"
+#include "tkrec/TrackerHit.h"
+#include "tkrec/Cluster.h"
+#include "tkrec/PreclusterSolution.h"
+
 // Standard library:
 #include <limits> // infinity
 #include <cmath> // isnan
 
-#include <datatools/exception.h>
+// Bayeux headers
+#include "datatools/exception.h"
 
-// Cimrman headers
-#include "tkrec/Precluster.h"
 
 // ClassImp(tkrec::Precluster);
 

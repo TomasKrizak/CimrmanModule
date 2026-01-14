@@ -4,17 +4,28 @@
 // Standard headers
 #include <iostream>
 #include <memory>
+#include <vector>
 
-#include <datatools/logger.h>
-
-// Cimrman headers
-#include "tkrec/Trajectory.h"
-#include "tkrec/Track.h"
-#include "tkrec/TrackerHit.h"
-
+// Bayeux headers
+#include "datatools/logger.h"
 
 namespace tkrec {
 
+  // Forward declarations
+  class TrackerHit;
+  using TrackerHitHdl = std::shared_ptr<TrackerHit>;
+  using ConstTrackerHitHdl = std::shared_ptr<const TrackerHit>;
+  
+  class Track;
+  using TrackHdl = std::shared_ptr<Track>;
+  using ConstTrackHdl = std::shared_ptr<const Track>;
+  
+  class Trajectory;
+  using TrajectoryHdl = std::shared_ptr<Trajectory>;
+  using ConstTrajectoryHdl = std::shared_ptr<const Trajectory>;
+
+ 
+ 
   class PreclusterSolution
   {
   private:

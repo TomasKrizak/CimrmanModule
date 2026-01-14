@@ -4,19 +4,29 @@
 // Standard headers
 #include <iostream>
 #include <vector>
-#include <cmath>
 #include <memory>
-#include <algorithm>
 
-// Cimrman headers
-#include "tkrec/TrackerHit.h"
-#include "tkrec/LinearFit.h"
-#include "tkrec/Point.h"
-#include "tkrec/Association.h"
-
+// Bayeux headers
 #include <datatools/utils.h>
 
+// Cimrman headers
+#include "tkrec/Association.h"
+
 namespace tkrec {
+
+  // Forward declaration 
+  class TrackerHit;
+  using TrackerHitHdl = std::shared_ptr<TrackerHit>;
+  using ConstTrackerHitHdl = std::shared_ptr<const TrackerHit>;
+
+  class Point;
+  using PointHdl = std::shared_ptr<Point>;
+  using ConstPointHdl = std::shared_ptr<const Point>;
+  
+  class LinearFit;
+  using LinearFitHdl = std::shared_ptr<LinearFit>;
+  using ConstLinearFitHdl = std::shared_ptr<const LinearFit>;
+
 
   class Track
   {

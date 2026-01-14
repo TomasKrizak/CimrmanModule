@@ -5,14 +5,23 @@
 #include <iostream>
 #include <memory>
 #include <limits>
+#include <vector>
 
+// Bayeux headers
 #include <datatools/logger.h>
 
-// Cimrman headers
-#include "tkrec/PreclusterSolution.h"
-
-
 namespace tkrec {
+
+  // Forward declaration 
+  class PreclusterSolution;
+  using PreclusterSolutionHdl = std::shared_ptr<PreclusterSolution>;
+  using ConstPreclusterSolutionHdl = std::shared_ptr<const PreclusterSolution>;
+  
+  class Trajectory;
+  using TrajectoryHdl = std::shared_ptr<Trajectory>;
+  using ConstTrajectoryHdl = std::shared_ptr<const Trajectory>;
+
+
 
   class Solution
   {

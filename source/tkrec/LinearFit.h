@@ -4,16 +4,16 @@
 // Standard headers
 #include <iostream>
 #include <memory>
-#include <math.h>
 
-#include <datatools/utils.h>
+// Bayeux headers
+#include "datatools/utils.h"
 
 // Cimrman headers
-#include "tkrec/Likelihood.h"
+#include "Likelihood.h"
 
 namespace tkrec {
 
-  // forward definition of Cluster to resolve circular dependacy
+  // Forward declarations
   class Cluster;
   using ConstClusterHdl = std::shared_ptr<const Cluster>;
 
@@ -27,9 +27,9 @@ namespace tkrec {
   //	z(s) = c*s + d
 
   // or in the form:
-  // 	x(t) = cos(phi)*cos(theta)*t + r*sin(phi)
-  // 	y(t) = sin(phi)*cos(theta)*t - r*cos(phi)
-  // 	z(t) = sin(theta)*t + h
+  // 	x(t) = cos(phi)*t + r*sin(phi)
+  // 	y(t) = sin(phi)*t - r*cos(phi)
+  // 	z(t) = tan(theta)*t + h
 
   // set of transformations:
   //	a = tan(phi)
@@ -67,9 +67,7 @@ namespace tkrec {
     LinearFit(const LinearFit & fit) = default;
     LinearFit(std::shared_ptr<const LinearFit> & fit);
 
-    
     void print(std::ostream & out_ = std::cout) const;
-		    
   };
 
   typedef std::shared_ptr<LinearFit> LinearFitHdl;

@@ -1,6 +1,9 @@
 // Cimrman headers
 #include "tkrec/LinearFit.h"
-#include "tkrec/Cluster.h" 
+#include "tkrec/Cluster.h"
+
+// Standard headers
+#include <cmath>
 
 // ClassImp(tkrec::LinearFit);
 

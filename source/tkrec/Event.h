@@ -5,18 +5,35 @@
 #include <vector>
 #include <iostream>
 
-// Cimrman headers
-#include "tkrec/OMHit.h"
-#include "tkrec/TrackerHit.h"
-#include "tkrec/Precluster.h"
-#include "tkrec/Cluster.h"
-#include "tkrec/Solution.h"
-
-// - Bayeux:
+// Bayeux headers
 #include <bayeux/datatools/logger.h>
 #include <bayeux/datatools/properties.h>
 
 namespace tkrec {
+
+  // Forward declarations
+  class OMHit;
+  using OMHitHdl = std::shared_ptr<OMHit>;
+  using ConstOMHitHdl = std::shared_ptr<const OMHit>;
+  
+  class TrackerHit;
+  using TrackerHitHdl = std::shared_ptr<TrackerHit>;
+  using ConstTrackerHitHdl = std::shared_ptr<const TrackerHit>;
+  
+  class Cluster;
+  using ClusterHdl = std::shared_ptr<Cluster>;
+  using ConstClusterHdl = std::shared_ptr<const Cluster>;
+  
+  class Precluster;
+  using PreclusterHdl = std::shared_ptr<Precluster>;
+  using ConstPreclusterHdl = std::shared_ptr<const Precluster>;
+  
+  class Solution;
+  using SolutionHdl = std::shared_ptr<Solution>;
+  using ConstSolutionHdl = std::shared_ptr<const Solution>;
+  
+  class Visu;
+  
 
   // Model of a tracker reconstructed event
   class Event

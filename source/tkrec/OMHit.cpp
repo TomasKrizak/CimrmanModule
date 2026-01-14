@@ -5,7 +5,6 @@
 
 namespace tkrec {
 
-
   OMHit::OMHit(int _OM_num)
   { 
     OM_num = _OM_num;

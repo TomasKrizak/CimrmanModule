@@ -1,6 +1,9 @@
 #ifndef FALAISE_CIMRMAN_DELAYEDCLUSTER_H
 #define FALAISE_CIMRMAN_DELAYEDCLUSTER_H
 
+// Standard library:
+#include <cmath> // M_PI
+
 // Cimrman headers
 #include "tkrec/Cluster.h"
 

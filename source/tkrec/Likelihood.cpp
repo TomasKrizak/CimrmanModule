@@ -1,6 +1,12 @@
 // Cimrman headers
 #include "tkrec/Likelihood.h"
-#include <tkrec/Cluster.h>
+#include "tkrec/TrackerHit.h"
+
+// Standard headers
+#include <math.h>
+
+// Cimrman headers
+#include "tkrec/Cluster.h"
 
 // ClassImp(tkrec::Likelihood);
 
@@ -74,9 +80,47 @@ namespace tkrec
       Cov_Zyy = (Zyy - Zy * Zy / Z) / Z;
       Cov_Zxy = (Zxy - Zx * Zy / Z) / Z;
     }	  
-    
-  	return;
   }
+
+  Likelihood::Likelihood(const std::vector<TrackerHitHdl> & hits, std::vector<bool> & signs)
+  {
+    if(hits.size() != signs.size() ) return;
+    
+    no_R = hits.size();
+    for(unsigned int i = 0; i < no_R; ++i)
+    {
+      auto& hit = hits[i];
+      
+      double x = hit->get_x();
+      double y = hit->get_y();
+      double r = hit->get_R();
+      
+      r *= (static_cast<double>(signs[i]) * 2.0 - 1.0);
+      
+      double const_R = 1.0 / (hit->get_sigma_R() * hit->get_sigma_R());
+
+      R  += const_R;
+      Rr += r * const_R;
+      Rx += x * const_R;
+      Ry += y * const_R;
+
+      Rrr += r * r * const_R;
+      Rrx += r * x * const_R;
+      Rry += r * y * const_R;
+      Rxx += x * x * const_R;
+      Ryy += y * y * const_R;
+      Rxy += x * y * const_R;
+
+    }
+    Cov_Rrr = (Rrr - Rr * Rr / R) / R;
+    Cov_Rrx = (Rrx - Rr * Rx / R) / R;
+    Cov_Rry = (Rry - Rr * Ry / R) / R;
+    Cov_Rxx = (Rxx - Rx * Rx / R) / R;
+    Cov_Ryy = (Ryy - Ry * Ry / R) / R;
+    Cov_Rxy = (Rxy - Rx * Ry / R) / R;
+  }
+
+  
 
   double Likelihood::log_likelihood_value(double phi) const
   {

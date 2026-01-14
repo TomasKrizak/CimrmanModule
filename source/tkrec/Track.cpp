@@ -1,5 +1,12 @@
 // Cimrman headers
 #include "tkrec/Track.h"
+#include "tkrec/TrackerHit.h"
+#include "tkrec/LinearFit.h"
+#include "tkrec/Point.h"
+
+// Standard headers
+#include <cmath>
+#include <algorithm>
 
 // ClassImp(tkrec::Track);
 
@@ -123,7 +130,7 @@ namespace tkrec {
     {
       const ConstTrackerHitHdl & hit = association.tracker_hit;
       
-      double distance_R2 =  std::abs(fit->r - hit->get_x() * sin_phi + hit->get_y() * cos_phi); 
+      double distance_R2 = std::abs(fit->r - hit->get_x() * sin_phi + hit->get_y() * cos_phi); 
       distance_R2 = std::pow(distance_R2 - hit->get_R(), 2.0);
       
       square_error_R += distance_R2;

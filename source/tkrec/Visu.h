@@ -6,34 +6,13 @@
 
 // Bayeux:
 #include <bayeux/datatools/bit_mask.h>
-
-// Cimrman headers
-#include "tkrec/Geometry.h"
-#include "tkrec/Event.h"
-
-// ROOT headers
-#include "TCanvas.h"
-#include "TColor.h"
-#include "TEllipse.h"
-#include "TH2D.h"
-#include "TAttLine.h"
-#include "TGLViewer.h"
-#include "TGeoManager.h"
-#include "TGeoVolume.h"
-#include "TFile.h"
-#include "TROOT.h"
-#include "TPolyLine3D.h"
-#include "TPolyLine.h"
-#include "TBox.h"
-#include "TLatex.h"
-#include "TLine.h"
-#include "TPoint.h"
-#include "TStyle.h"
-#include "TF1.h"
-#include "TGraph.h"
-#include "TPolyMarker3D.h"
+#include <datatools/logger.h>
 
 namespace tkrec {
+
+  // Forward declaration
+  class Geometry;
+  class Event;
 
   class Visu
   {

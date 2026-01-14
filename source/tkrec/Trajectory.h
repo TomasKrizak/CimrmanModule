@@ -4,14 +4,25 @@
 // Standard headers
 #include <iostream>
 #include <vector>
+#include <memory>
+
+// Bayeux headers
+#include <datatools/utils.h>
 
 // Cimrman headers
-#include "tkrec/TrackerHit.h"
-#include "tkrec/Track.h"
-#include "tkrec/Point.h"
+#include "tkrec/Association.h"
 
 namespace tkrec {
 
+  // forward definitions
+  class Track;
+  using TrackHdl = std::shared_ptr<Track>;
+  using ConstTrackHdl = std::shared_ptr<const Track>;
+  
+  class Point;
+  using PointHdl = std::shared_ptr<Point>;
+  using ConstPointHdl = std::shared_ptr<const Point>;
+  
   class Trajectory
   {
   private:
@@ -23,9 +34,7 @@ namespace tkrec {
     // chi_squared over NDF (number of measurements - number of parameters of the polyline)
     // number of measurements: number of associated tracker hits with available R
     //                       + number of associated tracker hits with available Z
-    // parameters of trajectory: 2 for trajectories without vertical fit
-    //                           3 for trajectories with only one hit with availabe Z
-    //                           4 for a straight trajectory
+    // parameters of trajectory: 4 for a straight trajectory
     //                           4 + 3k for kinked trajectory where k is number of kinks
     double chi_squared = datatools::invalid_real();
     double chi_squared_R = datatools::invalid_real();

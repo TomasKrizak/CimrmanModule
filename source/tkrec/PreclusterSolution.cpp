@@ -1,8 +1,11 @@
 // Cimrman headers
 #include "tkrec/PreclusterSolution.h"
+#include "tkrec/Trajectory.h"
+#include "tkrec/Track.h"
+#include "tkrec/TrackerHit.h"
 
 // Bayeux:
-#include <datatools/exception.h>
+#include "datatools/exception.h"
 
 // ClassImp(tkrec::PreclusterSolution);
 

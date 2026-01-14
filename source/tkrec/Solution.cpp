@@ -1,5 +1,7 @@
 // Cimrman headers
 #include "tkrec/Solution.h"
+#include "tkrec/PreclusterSolution.h"
+#include "tkrec/Trajectory.h"
 
 // Bayeux:
 #include <datatools/exception.h>

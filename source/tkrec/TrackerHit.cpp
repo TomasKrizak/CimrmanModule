@@ -1,7 +1,8 @@
 // Cimrman headers
 #include "tkrec/TrackerHit.h"
 
-#include <datatools/exception.h>
+// Bayeux headers
+#include "datatools/exception.h"
 
 //ClassImp(tkrec::TrackerHit);
 

@@ -4,25 +4,48 @@
 // Standard headers
 #include <iostream>
 #include <memory>
+#include <vector>
 
-// Cimrman headers
-#include "tkrec/TrackerHit.h"
-#include "tkrec/LinearFit.h"
-
+// Bayeux headers
+#include <datatools/exception.h>
 #include <datatools/logger.h>
+#include <datatools/utils.h>
 
 namespace tkrec {
+
+  // forward declarations
+  class TrackerHit;
+  using TrackerHitHdl = std::shared_ptr<TrackerHit>;
+  using ConstTrackerHitHdl = std::shared_ptr<const TrackerHit>;
+
+  class LinearFit;
+  using LinearFitHdl = std::shared_ptr<LinearFit>;
+  using ConstLinearFitHdl = std::shared_ptr<const LinearFit>;
+  
+
+
+  // 0 == no ambiguity
+  // 1 == mirror image along line x = x0 
+  // 2 == mirror image along line y = y0 
+  // 3 == mirror image along line y = x + (y0-x0) 
+  // 4 == mirror image along line y = -x + (y0-x0) 
+  enum class Ambiguity
+  {
+    None = 0,
+    Vertical = 1,
+    Horizontal = 2,
+    AntiDiagonal = 3,
+    MainDiagonal = 4
+  };
+
+
+
 
   class Cluster
   {
   protected:
 		
-    // 0 == no ambiguity
-    // 1 == mirror image along line x = x0 
-    // 2 == mirror image along line y = y0 
-    // 3 == mirror image along line y = x + (y0-x0) 
-    // 4 == mirror image along line y = -x + (y0-x0) 
-    int ambiguity_type = 0;
+    Ambiguity ambiguity_type = Ambiguity::None;
     
     std::vector<TrackerHitHdl> tracker_hits;
     std::vector<LinearFitHdl> linear_fits;
@@ -54,8 +77,8 @@ namespace tkrec {
     void set_r_estimate(double _r_estimate);
     double get_r_estimate() const;
 
-    void set_ambiguity_type(int _ambiguity_type);
-    int get_ambiguity_type() const;
+    void set_ambiguity_type(Ambiguity _ambiguity_type);
+    Ambiguity get_ambiguity_type() const;
 
     void print(std::ostream & out_ = std::cout) const;
 		

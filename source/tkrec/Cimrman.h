@@ -14,6 +14,7 @@
 #include <falaise/snemo/geometry/locator_plugin.h>
 
 #include "falaise/snemo/processing/module.h"
+
 #include "falaise/snemo/datamodels/calibrated_data.h"
 #include "falaise/snemo/datamodels/calibrated_tracker_hit.h"
 #include "falaise/snemo/datamodels/data_model.h"
@@ -25,6 +26,7 @@
 #include "falaise/snemo/datamodels/line_trajectory_pattern.h"
 #include "falaise/snemo/datamodels/polyline_trajectory_pattern.h"
 #include "falaise/snemo/datamodels/particle_track_data.h"
+
 #include "falaise/snemo/services/geometry.h"
 #include "falaise/snemo/services/service_handle.h"
 

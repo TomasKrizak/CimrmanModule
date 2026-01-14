@@ -3,9 +3,7 @@
 
 // Standard headers
 #include <iomanip>
-#include <algorithm>
 #include <vector>
-#include <stack>
 
 // Boost:
 #include <boost/multi_array.hpp>
@@ -17,10 +15,21 @@
 #include <bayeux/datatools/properties.h>
 
 // Cimrman headers
-#include "tkrec/Event.h"
 #include "tkrec/Geometry.h"
 #include "tkrec/Visu.h"
 #include "tkrec/Sinogram.h"
+#include "tkrec/Event.h"
+
+#include "tkrec/DelayedCluster.h"
+#include "tkrec/TrackerHit.h"
+#include "tkrec/Precluster.h"
+#include "tkrec/Solution.h"
+#include "tkrec/PreclusterSolution.h"
+#include "tkrec/LinearFit.h"
+#include "tkrec/Track.h"
+#include "tkrec/Trajectory.h"
+#include "tkrec/Point.h"
+#include "tkrec/Association.h"
 
 
 namespace tkrec {
@@ -99,7 +108,10 @@ namespace tkrec {
     bool keep_only_best_solutions = false;
     bool force_default_sigma_r = false; ///< Flag to force the default sigma r value for tracker hits
     double default_sigma_r = 2.0 * CLHEP::mm;
-    double chi_square_threshold = 5.0; ///< dimensionless
+    
+    // chi2 limiter is not implemented
+    //bool discard_bad_fits = false;
+    //double chi_square_threshold = 20.0; ///< dimensionless
 
     /// Configuration of clustering algorihtms
     ClusteringConfing clustering;
@@ -151,6 +163,8 @@ namespace tkrec {
                                      const double phi,
                                      const double r,
                                      const double distance_threshold);
+    std::vector<std::pair<double, double>> estimate_three_hit_tracks(const std::vector<TrackerHitHdl>& hits); // different approach (experimental)
+                                     
 
     // step 2: alpha clustering and track estimation
     void alpha_clustering();

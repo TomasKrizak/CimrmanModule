@@ -6,10 +6,12 @@
 #include <limits>
 #include <memory>
 
+// Falaise headers
 #include "falaise/snemo/datamodels/calibrated_tracker_hit.h"
-#include <bayeux/datatools/handle.h>
 
-#include <datatools/utils.h>
+// Bayeux headers
+#include "bayeux/datatools/handle.h"
+#include "datatools/utils.h"
 
 namespace tkrec {
 

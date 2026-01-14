@@ -1,8 +1,14 @@
 // Cimrman headers
 #include "tkrec/Trajectory.h"
+#include "tkrec/Track.h"
+#include "tkrec/Point.h"
+
+// Standard headers
+#include <cmath>
 
 // Bayeux:
 #include <datatools/exception.h>
+#include <datatools/utils.h>
 
 // ClassImp(tkrec::Trajectory);
 

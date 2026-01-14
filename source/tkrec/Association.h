@@ -1,12 +1,19 @@
 #ifndef FALAISE_CIMRMAN_ASSOCIATION_H
 #define FALAISE_CIMRMAN_ASSOCIATION_H
 
-// Cimrman headers
-#include "tkrec/TrackerHit.h"
-#include "tkrec/Point.h"
+// Standard headers
+#include<memory>
 
 
 namespace tkrec {
+  
+  // Forward declaration
+  class TrackerHit;
+  using ConstTrackerHitHdl = std::shared_ptr<const TrackerHit>;
+
+  class Point;
+  using PointHdl = std::shared_ptr<Point>;
+
 
   // Association stores relevant information about Track - TrackerHit connection
     

@@ -1,5 +1,13 @@
 // Cimrman headers
 #include "tkrec/Sinogram.h"
+#include "tkrec/TrackerHit.h"
+
+// Standard headers
+#include <iostream>
+
+// Root headers
+#include <TH2F.h>
+#include <TCanvas.h>
 
 // ClassImp(tkrec::Sinogram);
 
@@ -71,12 +79,26 @@ namespace tkrec {
       return min_edge + ((static_cast<double>(index_r) + 0.5) * step_size);
     }
     
-    // fast Padé approximation of exp(x)
-    // much faster than std::exp with at least 5 digits of precision in range (-4.5, 0) = 3sigma range when used for Gauss 
+    // fast Padé approximation of exp(x) (order 5,5)
+    // faster than std::exp with at least 5 digits of precision in range (-4.5, 0) = 3sigma range when used for Gauss 
     inline float fast_exp(const float x)
     {
       float nominator = 1.0f + x*(0.5f + x*(1.0f/9.0f + x*(1.0f/72.0f + x*(1.0f/1008.0f + x*(1.0f/30240.0f)))));
       float denominator = 1.0f - x*(0.5f - x*(1.0f/9.0f - x*(1.0f/72.0f - x*(1.0f/1008.0f - x*(1.0f/30240.0f)))));
+      return nominator / denominator;
+    }
+    
+    // fast Padé approximation of exp(x) (order 3,3)
+    // faster than std::exp, max error of 0.0085 in range (-4.5, 0) (3sigma range when used for Gauss)
+    inline float faster_exp(const float x)
+    {
+      constexpr float c1 = 0.5f;
+      constexpr float c2 = 1.0f / 10.0f;       
+      constexpr float c3 = 1.0f / 120.0f;        
+
+      float nominator = 1.0f + x * (c1 + x * (c2 + x * c3));
+      float denominator = 1.0f - x * (c1 - x * (c2 - x * c3));
+
       return nominator / denominator;
     }
     
@@ -171,7 +193,7 @@ namespace tkrec {
 				      // average probability density in a bin given by gauss distribution with mean in mu 
 				      double r_center = (r_j2 + r_j1) * 0.5f;
 				      float weight = (mu - r_center) / settings.sigma;
-				      weight = fast_exp( -0.5f * weight * weight ); // faster approximation of exp(x)
+				      weight = faster_exp( -0.5f * weight * weight ); // faster approximation of exp(x)
 				    
 				      // result is 2D histogram of several sinusoid functions f(phi) in convolution with gauss in r
 	            int globalBin = settings.resolution_r * k + binj;
@@ -246,12 +268,12 @@ namespace tkrec {
       const char* image_name;
       if( prompt )
       {
-        image_name = Form("Events_visu/prompt_sinogram-run-%d_event-%d_track-%d_iter-%d.png",
+        image_name = Form("Events_visu/prompt_sinogram-Rn%d_Ev%d_Tr%d_It%d.png",
                                     run_number, event_number, sinogram_ID, iteration );
       }
       else
       {
-        image_name = Form("Events_visu/delayed_sinogram-run-%d_event-%d_timestep-%d_iter-%d.png",
+        image_name = Form("Events_visu/delayed_sinogram-Rn%d_Ev%d_time%d_It%d.png",
                                     run_number, event_number, sinogram_ID, iteration );
       }
       canvas.SaveAs(image_name);

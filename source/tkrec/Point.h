@@ -3,7 +3,6 @@
 
 // Standard headers
 #include <iostream>
-#include <cmath>
 #include <memory>
 
 #include <datatools/utils.h>

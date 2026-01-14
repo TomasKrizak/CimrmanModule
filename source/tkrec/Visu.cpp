@@ -1,5 +1,37 @@
 // Cimrman headers
 #include "tkrec/Visu.h"
+#include "tkrec/Geometry.h"
+#include "tkrec/Event.h"
+#include "tkrec/TrackerHit.h"
+#include "tkrec/OMHit.h"
+#include "tkrec/Solution.h"
+#include "tkrec/Point.h"
+#include "tkrec/Association.h"
+#include "tkrec/Trajectory.h"
+#include "tkrec/Track.h"
+
+// ROOT headers
+#include "TCanvas.h"
+#include "TColor.h"
+#include "TEllipse.h"
+#include "TH2D.h"
+#include "TAttLine.h"
+#include "TGLViewer.h"
+#include "TGeoManager.h"
+#include "TGeoVolume.h"
+#include "TFile.h"
+#include "TROOT.h"
+#include "TPolyLine3D.h"
+#include "TPolyLine.h"
+#include "TBox.h"
+#include "TLatex.h"
+#include "TLine.h"
+#include "TPoint.h"
+#include "TStyle.h"
+#include "TF1.h"
+#include "TGraph.h"
+#include "TPolyMarker3D.h"
+
 
 namespace tkrec {
 

@@ -2,20 +2,19 @@
 #define FALAISE_CIMRMAN_SINOGRAM_H
 
 // Standard headers
-#include <iostream>
-#include <cmath>
 #include <vector>
 #include <tuple>
-
-// Cimrman headers
-#include "TrackerHit.h"
-
-// Root:
-#include <TH2F.h>
-#include <TCanvas.h>
+#include <memory>
+#include <cmath>
 
 namespace tkrec {
-
+  
+  // Forward declarations
+  class TrackerHit;
+  using TrackerHitHdl = std::shared_ptr<TrackerHit>;
+  using ConstTrackerHitHdl = std::shared_ptr<const TrackerHit>;
+  
+  
   class Sinogram
   {		
   private:
@@ -51,7 +50,7 @@ namespace tkrec {
     uint32_t iteration = 0u;
     double peak_phi = 0.0;
     double peak_r = 0.0;
-    double peak_value = 0.0f;
+    double peak_value = 0.0;
 
     // sinogram identifiers for saving png images 
     int run_number = 0; 
@@ -78,7 +77,6 @@ namespace tkrec {
     void set_run(int _run_number);
     void set_event(int _event_number); 
 
-    
     void reset_dual_space(); // resets the internal buffer
     void reset_state(double _peak_phi = 0.0, double _peak_r = 0.0); // resets internal state
     void reset_sinogram_counter(); // resets sinogram_ID

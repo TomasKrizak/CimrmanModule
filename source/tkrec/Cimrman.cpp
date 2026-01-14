@@ -1,5 +1,6 @@
 // Interface from Falaise
 #include "tkrec/Cimrman.h"
+#include "tkrec/OMHit.h"
 
 namespace tkrec {
 

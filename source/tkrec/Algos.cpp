@@ -1,5 +1,14 @@
-// Interface from Falaise
+// Cimrman headers
 #include "tkrec/Algos.h"
+
+// XXX Temporary root headers
+#include <TCanvas.h>
+#include <TH1F.h>
+
+// Standard headers
+#include <algorithm>
+#include <stack>
+#include <cmath>
 
 namespace tkrec {
  
@@ -75,13 +84,14 @@ namespace tkrec {
       this->default_sigma_r = value / CLHEP::mm;
     }
   
+    /*
     if (config_.has_key("chi_square_threshold")) {
       this->chi_square_threshold =
         config_.fetch_dimensionless_real("chi_square_threshold");
       DT_THROW_IF(this->chi_square_threshold < 0.0,
 		              std::logic_error,
 		              "Invalid chi_square_threshold value");
-    }
+    }*/
   
     //=======================================================
     //############# Electron clustering config ##############
@@ -925,10 +935,13 @@ namespace tkrec {
         
         // creates mirror fit obejct in case of ambiguous clusters with its own likelihood support structure
         create_mirror_fit(cluster);
+        
         // for both fits (in case of ambiguity) finds ML estimate for (phi, r, theta, h)       
         for(auto & fit : cluster->get_linear_fits()) 
         {
           make_ML_estimate(fit);
+          //TODO: chi2 limiter could be implemented here to not propagate bad fits further
+          // ,but would require a dedicated function for calculation (fits dont yet have chi2) 
         }
       }
     }
@@ -1022,7 +1035,7 @@ namespace tkrec {
     }
     if( ambiguous == true )
     {
-      cluster->set_ambiguity_type( 1 );
+      cluster->set_ambiguity_type( Ambiguity::Vertical );
       return;
     }
     
@@ -1038,7 +1051,7 @@ namespace tkrec {
     }
     if( ambiguous == true )
     {
-    cluster->set_ambiguity_type( 2 );
+    cluster->set_ambiguity_type( Ambiguity::Horizontal );
     	return;
     }
     
@@ -1054,7 +1067,7 @@ namespace tkrec {
     }
     if( ambiguous == true )
     {
-      cluster->set_ambiguity_type( 3 );
+      cluster->set_ambiguity_type( Ambiguity::AntiDiagonal );
       return;
     }
     
@@ -1070,17 +1083,17 @@ namespace tkrec {
     }
     if( ambiguous == true )
     {
-      cluster->set_ambiguity_type( 4 );
+      cluster->set_ambiguity_type( Ambiguity::MainDiagonal );
     	return;
     }
 
-    cluster->set_ambiguity_type( 0 );
+    cluster->set_ambiguity_type( Ambiguity::None );
     return;
   }
   
   void Algos::create_mirror_fit(ClusterHdl cluster)
   {  
-    if( cluster->get_ambiguity_type() == 0 )
+    if( cluster->get_ambiguity_type() == Ambiguity::None )
     {
       return;
     }
@@ -1104,19 +1117,19 @@ namespace tkrec {
     
     switch(cluster->get_ambiguity_type())
     {
-    case 1:
+    case Ambiguity::Vertical:
       mirror_a = -a0;
       mirror_b = 2.0 * a0 * x0 + b0;
       break;
-    case 2:
+    case Ambiguity::Horizontal:
       mirror_a = -a0;
       mirror_b = 2.0 * y0 - b0;
       break;
-    case 3:
+    case Ambiguity::AntiDiagonal:
       mirror_a = 1.0 / a0;
       mirror_b = y0 - x0 - (b0 / a0) + (y0 - x0) / a0;
       break;
-    case 4:
+    case Ambiguity::MainDiagonal:
       mirror_a = 1.0 / a0;
       mirror_b = y0 + x0 + (b0 / a0) - (y0 + x0) / a0;
       break;
@@ -1135,7 +1148,7 @@ namespace tkrec {
     
     // with the exception of type 1, mirrot fits correspond to the opposite halves of tracker hits
     // this changes the sign of the sums in the likelihood that contain drift radii
-    if( cluster->get_ambiguity_type() != 1 )
+    if( cluster->get_ambiguity_type() != Ambiguity::Vertical )
     {  
       mirror_fit->likelihood.Rr *= -1.0;
       mirror_fit->likelihood.Rrx *= -1.0;
@@ -1163,7 +1176,7 @@ namespace tkrec {
       int no_ambiguities = 0;
       for(auto & cluster : precluster->get_clusters())
       {
-        if( cluster->get_ambiguity_type() )
+        if( cluster->get_ambiguity_type() != Ambiguity::None )
         {
           no_ambiguities++;
         }
@@ -1579,7 +1592,7 @@ namespace tkrec {
 
 
     // middle segments
-    for(auto i = 1u; i < segments.size() - 1; i++)
+    for(auto i = 1u; i < segments.size() - 1; ++i)
     {
       segment = segments[i];
       next_kink_point = kink_points[i];
@@ -2272,7 +2285,7 @@ namespace tkrec {
     }
     MSE = MSE / double(no_R + no_Z);
     
-    // chi_squared is the sum of chi_squares of all segments divided by number of measurement - DOF
+    // chi_squared is the sum of chi_squares of all segments divided by (number_of_measurements - DOF)
     if(no_R - DOF_R > 0)
     {
       chi_squared_R = chi_squared_R / double(no_R - DOF_R);    
@@ -2514,6 +2527,10 @@ namespace tkrec {
     }
   }
 
+  
+  // "Hough transform clustering" - Legendre transform clustering alternative for hits without drift radii
+  // transforms the triggered cell (square) into space of all lines (phi, r) crossing this square
+  // algo returns angular range [phi_min, phi_max] such that line (phi, r) from this range crosses the most cells geometrically possible   
   std::pair<double, double> Algos::find_delayed_cluster(std::vector<TrackerHitHdl> & hits, std::vector<TrackerHitHdl> & cluster_hits)
   {
     //number of different values of phi among which the cluster is being searched for
@@ -2685,7 +2702,7 @@ namespace tkrec {
     return {phi_min_out, phi_max_out};
   }
   
-  // estimates the possible range for the missing reference time
+  // estimates the possible range for the missing reference time based on anodic times of provided hits
   void Algos::find_reference_time_bounds(DelayedClusterHdl delayed_cluster)
   {
     const double min_possible_drift_time = _config_.alphas.min_possible_drift_time; // in nanoseconds
@@ -2725,8 +2742,11 @@ namespace tkrec {
     DT_THROW_IF(lower_bound > upper_bound, std::logic_error, "Invalid reference time bounds found!");
   }
   
+  
+  // find estimate of a linear fit for delayed cluster
+  // finds optimal reference time and sets the drift radii - cluster can be further treated same as a prompt one
   void Algos::estimate_delayed_track(DelayedClusterHdl delayed_cluster)
-  {
+  { 
     // constant same for all events
     const double initial_phi_step = _config_.alphas.phi_step;
     const double delta_r          = _config_.alphas.delta_r;
@@ -2751,15 +2771,20 @@ namespace tkrec {
     delayed_sinogram_manager.set_run( _event_->get_run_number() );
     delayed_sinogram_manager.set_event( _event_->get_event_number() );
     
+    int bins = (time_end - time_start) / time_step;
+    
+    //TH1F best_values = TH1F("best_values", "best_values", 
+    //                   bins, time_start, time_end);
+    
     // setting up the grid search through time range
-    int time_iteration = 0; 
+    int time_bin = 0;
     double max = 0;
     double best_ref_time = time_start;
     double best_r = 0.0;
     double best_phi = 0.0;
     for(double time = time_end; time >= time_start; time -= time_step)
     {
-      time_iteration++;
+      time_bin++;
       delayed_cluster->set_reference_time(time);
       delayed_cluster->update_drift_radii();
     
@@ -2779,19 +2804,91 @@ namespace tkrec {
         best_r = r_estimate;
         best_ref_time = time;
       }
+      
+      //best_values.AddBinContent(bins - time_bin + 1, peak_value);
     }
     
+    /*
+    {
+      TCanvas canvas("alpha", "alpha", 1000, 800);
+      canvas.cd();
+      best_values.SetStats(0);
+      best_values.Draw();
+      const char* image_name = Form("Events_visu/alphas_Ev%d.png", _event_->get_event_number() );
+      canvas.SaveAs(image_name);
+    }
+    */
+    // saving the best found estimate 
     delayed_cluster->set_reference_time(best_ref_time);
     delayed_cluster->update_drift_radii();
-    
     delayed_cluster->set_phi_estimate(best_phi);
     delayed_cluster->set_r_estimate(best_r);
     
+    // reseting the sinogram after alpha track
     delayed_sinogram_manager.reset_sinogram_counter();
     
     DT_LOG_DEBUG(_config_.verbosity, "Delayed track estimate: phi = " << best_phi << " rad, r = " << best_r << " mm");
   
   }
+  
+  
+  
+  // different track estimation approach - more analytical (and experimental currently) - tries all 8 combinations and chooses
+  std::vector<std::pair<double, double>> Algos::estimate_three_hit_tracks(const std::vector<TrackerHitHdl>& hits)
+  {
+    std::vector<std::pair<double, double>> output_estimates;
+
+    if( hits.size() != 3 ) output_estimates;    
+    
+    const double log_likelihood_threshold = -10.0;
+    const unsigned int phi_bins = 100;
+    
+    std::array<double, 8> maxima = {0};
+    std::array<double, 8> maxima_phi = {0};
+    std::array<double, 8> maxima_r = {0};
+    for(int i = 0; i < 8; ++i)
+    {
+      std::vector<bool> signs = {bool(i & 1),
+                                 bool(i & 2),
+                                 bool(i & 4)};
+      Likelihood likelihood(hits, signs);
+      
+      std::array<double, phi_bins> function_grid = {0};
+      double phi_step = M_PI / static_cast<double>(phi_bins);
+      double phi = -M_PI / 2.0;
+      for(unsigned int j = 0; j < phi_bins; ++j)
+      {
+        function_grid[j] = likelihood.log_likelihood_value(phi);
+        phi += phi_step;
+      }
+     
+      auto it_max = std::max_element(function_grid.begin(), function_grid.end());
+      maxima[i] = *it_max;
+      
+      double max_phi = (-M_PI / 2.0) + phi_step * static_cast<double>(it_max - function_grid.begin());
+      maxima_phi[i] = max_phi;
+      
+      double max_r = (likelihood.Rx * std::sin(max_phi)) 
+                   - (likelihood.Ry * std::cos(max_phi)) 
+                   + likelihood.Rr;
+      max_r /= likelihood.R; 
+      maxima_r[i] = max_r;
+    }
+    
+    for(int i = 0; i < 8; ++i)
+    {
+      if( maxima[i] > log_likelihood_threshold)
+      {
+        output_estimates.emplace_back(maxima_phi[i], maxima_r[i]);
+        //std::cout << maxima[i] << ": (" << maxima_phi[i] << ", " << maxima_r[i] << ")" << std::endl; 
+      }
+    }
+    
+    return output_estimates;
+  }
+  
+  
+  
   
 } //  end of namespace tkrec
 

@@ -1,12 +1,17 @@
 // Cimrman headers
 #include "tkrec/Event.h"
+#include "tkrec/OMHit.h"
+#include "tkrec/TrackerHit.h"
+#include "tkrec/Cluster.h"
+#include "tkrec/Precluster.h"
+#include "tkrec/Solution.h"
 
 // Standard headers
 #include <cmath>
 #include <iomanip>
 
-// - Bayeux:
-#include <bayeux/datatools/clhep_units.h>
+// Bayeux:
+#include "bayeux/datatools/clhep_units.h"
 
 // ClassImp(tkrec::Event);
 

@@ -1,6 +1,9 @@
 // Cimrman headers
 #include "tkrec/Association.h"
 
+// Cimrman headers
+#include "tkrec/TrackerHit.h"
+
 // ClassImp(tkrec::Association);
 
 namespace tkrec {

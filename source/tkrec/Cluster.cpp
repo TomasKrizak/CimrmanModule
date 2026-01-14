@@ -1,11 +1,7 @@
 // Cimrman headers
 #include "tkrec/Cluster.h"
-
-// Standard library:
-#include <limits> // infinity
-#include <cmath> // isnan
-
-#include <datatools/exception.h>
+#include "tkrec/LinearFit.h"
+#include "tkrec/TrackerHit.h"
 
 // ClassImp(tkrec::Cluster);
 
@@ -64,12 +60,12 @@ namespace tkrec {
     r_estimate = _r_estimate;
   }
 
-  void Cluster::set_ambiguity_type(int _ambiguity_type)
+  void Cluster::set_ambiguity_type(Ambiguity _ambiguity_type)
   {
     ambiguity_type = _ambiguity_type;
   }
 
-  int Cluster::get_ambiguity_type() const
+  Ambiguity Cluster::get_ambiguity_type() const
   {
     return ambiguity_type;
   }
@@ -87,10 +83,10 @@ namespace tkrec {
   void Cluster::print(std::ostream & out_) const
   {
     out_ << "Cluster |"
-	 << " size "           << tracker_hits.size()
+	 << " size: "           << tracker_hits.size()
 	 << ", phi estimate: " << phi_estimate 
 	 << ", r estimate: "   << r_estimate 
-	 << ", ambiguity type: " << ambiguity_type << std::endl;
+	 << ", ambiguity type: " << int(ambiguity_type) << std::endl;
   }
 
 } //  end of namespace tkrec
