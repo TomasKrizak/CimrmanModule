@@ -562,15 +562,31 @@ namespace tkrec {
 
     if (_visu_)
     {
-      //auto & preclusters = _event_->get_preclusters();
-      //int count_delayed = std::count_if(preclusters.begin(), preclusters.end(), [](const auto & precl){return precl->is_delayed();} );
-      if(_config_.visualization_2D/* && count_delayed > 0*/)
+    
+      auto & preclusters = _event_->get_preclusters();
+      int count_delayed = std::count_if(preclusters.begin(), preclusters.end(), [](const auto & precl){return precl->is_delayed();} );
+      
+      auto & solutions = _event_->get_solutions();
+      bool long_traj = false;
+      for(const auto & sol : solutions)
+      {
+        const auto & traj = sol->get_trajectories();
+        auto large_traj = std::find_if(traj.begin(), traj.end(), [](const auto & tr){return tr->get_segments().size() > 6;});
+        if( large_traj != traj.end() ) 
+        {
+          long_traj = true;
+          break;
+        }
+      }
+      
+      
+      if(_config_.visualization_2D /*&& long_traj && count_delayed > 0*/)
       {
         DT_LOG_DEBUG(_config_.verbosity, "Creating and saving 2D visualizations");
         _visu_->make_top_projection();
       }
       
-      if(_config_.visualization_3D/* && count_delayed > 0*/)
+      if(_config_.visualization_3D /*&& long_traj && count_delayed > 0*/)
       {
         DT_LOG_DEBUG(_config_.verbosity, "Creating and saving 3D visualizations");
         _visu_->build_event();
@@ -808,8 +824,9 @@ namespace tkrec {
           valid_Z = true;
         
           // create and add new cluster to the precluster
-          ClusterHdl cluster = std::make_shared<Cluster>( sub_clusters[j], phi_estimate, r_estimate );
+          ClusterHdl cluster = std::make_shared<Cluster>( sub_clusters[j], phi_estimate, r_estimate );          
           clusters.push_back( cluster );
+          DT_LOG_DEBUG(_config_.verbosity, "Cluster found with " << sub_clusters[j].size() << " hits and estimate (" << phi_estimate << " rad, " << r_estimate << " mm)");
         }
         else
         {
@@ -954,7 +971,7 @@ namespace tkrec {
     // Likelihood is 4D function but 3 variables are solved analytically as a function of phi. 
     Likelihood & lik = fit->likelihood;
     double phi_0 = fit->phi;
-    const double h = 0.000001;
+    const double h = 0.000001; // has to be small but not too small - ideally roughly half the available decimal precision to maximize numerical stability and calculation precision
     for(int i = 0; i < 3; ++i)
     {
       double derivative = lik.log_likelihood_derivative(phi_0);
@@ -968,6 +985,8 @@ namespace tkrec {
     
     fit->phi = phi_0;
     fit->r = r_0;
+    
+   
     
     fit->a = tan_phi0;
     fit->b = -r_0 / cos_phi0;
@@ -1009,6 +1028,11 @@ namespace tkrec {
       fit->c = 0.0;
       fit->d = lik.Zz / lik.Z;
     } 
+    
+    DT_LOG_DEBUG(_config_.verbosity, "Linear fit created: (" << fit->phi << " rad, " 
+                                                             << fit->r << " mm, " 
+                                                             << fit->theta << " rad, "
+                                                             << fit->h << " mm)" );
     DT_THROW_IF(lik.no_Z == 0, std::logic_error, "No Z infromation available for fitting!");
     
     return;
@@ -1036,6 +1060,7 @@ namespace tkrec {
     if( ambiguous == true )
     {
       cluster->set_ambiguity_type( Ambiguity::Vertical );
+      DT_LOG_DEBUG(_config_.verbosity, "Cluster ambiguity: Vertical");
       return;
     }
     
@@ -1051,7 +1076,8 @@ namespace tkrec {
     }
     if( ambiguous == true )
     {
-    cluster->set_ambiguity_type( Ambiguity::Horizontal );
+      cluster->set_ambiguity_type( Ambiguity::Horizontal );
+      DT_LOG_DEBUG(_config_.verbosity, "Cluster ambiguity: Horizontal");
     	return;
     }
     
@@ -1068,6 +1094,7 @@ namespace tkrec {
     if( ambiguous == true )
     {
       cluster->set_ambiguity_type( Ambiguity::AntiDiagonal );
+      DT_LOG_DEBUG(_config_.verbosity, "Cluster ambiguity: Anti-diagonal");
       return;
     }
     
@@ -1084,10 +1111,12 @@ namespace tkrec {
     if( ambiguous == true )
     {
       cluster->set_ambiguity_type( Ambiguity::MainDiagonal );
+      DT_LOG_DEBUG(_config_.verbosity, "Cluster ambiguity: Main-diagonal");
     	return;
     }
 
     cluster->set_ambiguity_type( Ambiguity::None );
+    DT_LOG_DEBUG(_config_.verbosity, "Cluster ambiguity: None");
     return;
   }
   
@@ -2505,22 +2534,26 @@ namespace tkrec {
       // clusterizes separatelly every prompt precluster
       if( precluster->is_prompt() ) continue;
   
+      // early exit for too few hits
       std::vector<TrackerHitHdl> & unclustered_hits = precluster->get_unclustered_tracker_hits(); 
       if(unclustered_hits.size() < 3)
       {
-        //DelayedClusterHdl unfitted_cluster = std::make_shared<DelayedCluster>( unclustered_hits );
-        //_event_->get_unfitted_clusters().push_back( unfitted_cluster );
+        DT_LOG_DEBUG(_config_.verbosity, "Delayed cluster not found - too few usable hits");
         continue;
       }
-      
+     
+      // clustering - attempting to contraint phi range and remove misaligned hits
       std::vector<TrackerHitHdl> cluster_hits;
-      auto [phi_min_ptr, phi_max_ptr] = find_delayed_cluster(unclustered_hits, cluster_hits);
+      auto [phi_min_ptr, phi_max_ptr] = find_delayed_cluster(unclustered_hits, cluster_hits); 
       
+      // early exit if no large enough group is found
       if(cluster_hits.size() < 3) continue;
       
+      // creating the delayed cluster
       DelayedClusterHdl delayed_cluster = std::make_shared<DelayedCluster>(cluster_hits, phi_min_ptr, phi_max_ptr);        
       precluster->get_clusters().push_back( delayed_cluster );
 
+      // track estimation
       delayed_cluster->find_center();
       find_reference_time_bounds(delayed_cluster);
       estimate_delayed_track(delayed_cluster);
@@ -2698,6 +2731,7 @@ namespace tkrec {
     {
       hits.insert(hits.end(), cluster_hits.begin(), cluster_hits.end());
       cluster_hits.clear();
+      DT_LOG_DEBUG(_config_.verbosity, "Delayed cluster not found - too few hits or not enough Z measurements" );
     }
     return {phi_min_out, phi_max_out};
   }
@@ -2886,9 +2920,6 @@ namespace tkrec {
     
     return output_estimates;
   }
-  
-  
-  
   
 } //  end of namespace tkrec
 

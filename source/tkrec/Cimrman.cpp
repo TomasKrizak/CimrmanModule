@@ -319,34 +319,54 @@ namespace tkrec {
       {
         int SRL[3] = {trhit->get_side(), trhit->get_row(), trhit->get_layer()};
         auto hit = std::make_shared<TrackerHit>(SRL);
+        
+        // set link to falaise object
         hit->set_CDbank_tr_hit( trhit ); 
 	      
+	      // set position
         if(trhit->has_xy())
         {
           hit->set_x(trhit->get_x() / CLHEP::mm);
           hit->set_y(trhit->get_y() / CLHEP::mm);
         }
         
+        // prompt vs delayed, if prompt - set anodic time
         if(trhit->is_prompt()) 
         {
-          hit->set_as_prompt();
+          hit->set_as_prompt(); // by default, hit is delayed
         }
-        else if(trhit->is_delayed() && trhit->has_delayed_time())
+        else
         {
-          hit->set_delayed_time(trhit->get_delayed_time());
+          if( trhit->has_delayed_time() )        
+          {
+            hit->set_delayed_time(trhit->get_delayed_time());
+          }
+          else
+          {
+            // TODO what if it doesnt have delayed time? add a flag?
+            std::cout << "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" << std::endl;          
+          }
         }
         
-        double sigmaR = _config_.recConfig.default_sigma_r;
-        if(not std::isnan(trhit->get_r()))
+        // set drift radius and drift radius sigma
+        if(not std::isnan(trhit->get_r())) // == if trhit has valid radius
         {
+          hit->set_valid_R(); // by default, hit has invalid R
           hit->set_R( trhit->get_r() / CLHEP::mm );
-          hit->set_valid_R();
-          if(not std::isnan(trhit->get_sigma_r()) 
-            && not _config_.recConfig.force_default_sigma_r)
+        
+          // sigma of drift radius
+          if( _config_.recConfig.force_default_sigma_r ) // Cimrman can override sigmas with a custom choice
           {
-            sigmaR = trhit->get_sigma_r() / CLHEP::mm;
+            hit->set_sigma_R( _config_.recConfig.default_sigma_r );
           }
-          hit->set_sigma_R( sigmaR );
+          else if(not std::isnan(trhit->get_sigma_r())) // == trhit has valid sigma R
+          {
+            hit->set_sigma_R( trhit->get_sigma_r() / CLHEP::mm );
+          }
+          else
+          {
+            hit->set_sigma_R(datatools::invalid_real());
+          }
         }
         else
         {
@@ -354,10 +374,11 @@ namespace tkrec {
           hit->set_sigma_R(datatools::invalid_real());
         }
 		    
-        if(not std::isnan(trhit->get_z()))
+		    // set Z position and sigma Z
+        if(not std::isnan(trhit->get_z())) // == trhit has valid Z value
         {
           hit->set_Z( trhit->get_z() / CLHEP::mm);
-          hit->set_valid_Z();
+          hit->set_valid_Z(); // invalid by default
           hit->set_sigma_Z( trhit->get_sigma_z() / CLHEP::mm );
         }
         else
@@ -371,6 +392,7 @@ namespace tkrec {
 
     }
     
+    // extracting existing clustering information
     if(_config_.recConfig.use_provided_preclustering
        && workItem.has(_config_.TCD_label))
     {
@@ -410,6 +432,32 @@ namespace tkrec {
         if(not temp_precluster.empty())
         {
           _work_->event.add_precluster(temp_precluster, prompt, side);
+        }
+      }
+      
+      // If existing TCD bank already contains unclustered hits, they are added into invalid hits (not used for tracking)
+      const auto & falaise_uncl_hits = solution->get_unclustered_hits();
+      auto & tr_hits = _work_->event.get_tracker_hits();
+      // reverse traversal - erasing elements does not affect elements before i  
+      for(size_t i = tr_hits.size()-1; i != -1; i--)
+      {
+        auto & hit = tr_hits[i];
+        bool match_found = false;
+        
+        // pairing Cimrman hit to falaise unclustered hits
+        for(const auto & falaise_hit : falaise_uncl_hits)
+        {
+            if( hit->get_CDbank_tr_hit()->get_hit_id() == falaise_hit->get_hit_id() )
+            {
+              match_found = true;
+              break;
+            }
+        }
+     
+        if(match_found)
+        {
+          _work_->event.get_invalid_tracker_hits().push_back(hit);
+          tr_hits.erase(tr_hits.begin() + i);
         }
       }
     }

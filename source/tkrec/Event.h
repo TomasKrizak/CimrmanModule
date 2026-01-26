@@ -50,7 +50,7 @@ namespace tkrec {
     
     // things excluded by Cimrman, stored to pass them along to other modules
     std::vector<TrackerHitHdl> invalid_tracker_hits; // prompt tracker hits without drift radius - unusable
-    std::vector<ClusterHdl> unfitted_clusters; ///< List of unfitted clusters solutions (not completely implemented - not needed)	
+    std::vector<ClusterHdl> unfitted_clusters; ///< List of unfitted clusters (not completely implemented - not needed)	
 		
   public:
 	

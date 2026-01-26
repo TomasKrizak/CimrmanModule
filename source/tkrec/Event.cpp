@@ -152,13 +152,13 @@ namespace tkrec {
   
   void Event::add_tracker_hit(const TrackerHitHdl & trhit)
   {
-    if( !trhit->has_valid_R() && trhit->is_prompt())
+    if( trhit->has_valid_R() || not trhit->is_prompt())
     {
-      invalid_tracker_hits.push_back(trhit);
+      tracker_hits.push_back(trhit);
     }
     else
     {
-      tracker_hits.push_back(trhit);    
+      invalid_tracker_hits.push_back(trhit);
     }
   }	
 

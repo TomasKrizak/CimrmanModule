@@ -12,7 +12,7 @@ namespace tkrec {
   // dimensions in mm
   // origin in the center of detector
   const double TrackerHit::default_sigma_R = 2.0; // in mm //_config_.default_sigma_r; TODO??
-  const double TrackerHit::default_sigma_Z = 17.0; // in mm
+  const double TrackerHit::default_sigma_Z = 10.0; // in mm
   const double TrackerHit::default_R = 22.0; // in mm
   const double TrackerHit::default_Z = 0.0; // in mm
 

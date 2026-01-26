@@ -83,7 +83,7 @@ namespace tkrec {
     // faster than std::exp with at least 5 digits of precision in range (-4.5, 0) = 3sigma range when used for Gauss 
     inline float fast_exp(const float x)
     {
-      float nominator = 1.0f + x*(0.5f + x*(1.0f/9.0f + x*(1.0f/72.0f + x*(1.0f/1008.0f + x*(1.0f/30240.0f)))));
+      float nominator   = 1.0f + x*(0.5f + x*(1.0f/9.0f + x*(1.0f/72.0f + x*(1.0f/1008.0f + x*(1.0f/30240.0f)))));
       float denominator = 1.0f - x*(0.5f - x*(1.0f/9.0f - x*(1.0f/72.0f - x*(1.0f/1008.0f - x*(1.0f/30240.0f)))));
       return nominator / denominator;
     }
@@ -96,7 +96,7 @@ namespace tkrec {
       constexpr float c2 = 1.0f / 10.0f;       
       constexpr float c3 = 1.0f / 120.0f;        
 
-      float nominator = 1.0f + x * (c1 + x * (c2 + x * c3));
+      float nominator   = 1.0f + x * (c1 + x * (c2 + x * c3));
       float denominator = 1.0f - x * (c1 - x * (c2 - x * c3));
 
       return nominator / denominator;
@@ -126,26 +126,26 @@ namespace tkrec {
         
         bool overlap = false;
         for(int half = 0; half < 2; ++half)
-        {	
+        {    
           // mu - legendre transform of half circle (+R/-R)
-          double mu = (r + (2.0 * half - 1.0) * tracker_hit->get_R());	
+          double mu = (r + (2.0 * half - 1.0) * tracker_hit->get_R());    
 
-          // gauss is calculated only for -3 to 3 sigma region to cut time							
+          // gauss is calculated only for -3 to 3 sigma region to cut time                            
           double r1 = mu - 3.0 * settings.sigma;
           double r2 = mu + 3.0 * settings.sigma;
           
           
-				  // if the 3sigma regions of the two halves of tracker hit overlap, we restrict the range to the middle (-+half bin for safety) 
-			    if(half == 0)
-			    {
+          // if the 3sigma regions of the two halves of tracker hit overlap, we restrict the range to the middle (-+half bin for safety) 
+          if(half == 0)
+          {
             if(r2 > r) overlap = true;
-            
-			    	r2 = std::min(r2, r - 0.5 * R_bin_width); 
-			    }
-			    else
-			    {
-			    	r1 = std::max(r1, r + 0.5 * R_bin_width);
-			    }
+      
+            r2 = std::min(r2, r - 0.5 * R_bin_width); 
+          }
+          else
+          {
+            r1 = std::max(r1, r + 0.5 * R_bin_width);
+          }
 
           // bin numbers coresponding to r1 and r2 values
           int bin1 = (static_cast<double>(settings.resolution_r) * (r1 - r_min) / delta_r);
@@ -162,8 +162,8 @@ namespace tkrec {
           
           // for large bins compared to the used sigma of gaussian bluring,
           // the function is integrated over the bin (in R direction)  
-			    if(	R_bin_width > settings.sigma )
-		      {
+          if( R_bin_width > settings.sigma )
+          {
             const double normalization = 1.0f / std::sqrt(2.0) * settings.sigma;
             for(int binj = bin1; binj < bin2 + 1; ++binj)
             {
@@ -178,30 +178,30 @@ namespace tkrec {
               int globalBin = settings.resolution_r * k + binj;
               dual_space[globalBin] += weight;             
               
-              r_j1 = r_j2;			
-            }	
+              r_j1 = r_j2;            
+            }    
           }
           
           // for dense enough binning, the values are plotted without intergating
           // (saves A LOT of time - erf is expensive)
           else
           {
-			      for(int binj = bin1; binj < bin2 + 1; ++binj)
-		        {
-			        r_j2 = r_j1 + R_bin_width;
-			      
-				      // average probability density in a bin given by gauss distribution with mean in mu 
-				      double r_center = (r_j2 + r_j1) * 0.5f;
-				      float weight = (mu - r_center) / settings.sigma;
-				      weight = faster_exp( -0.5f * weight * weight ); // faster approximation of exp(x)
-				    
-				      // result is 2D histogram of several sinusoid functions f(phi) in convolution with gauss in r
-	            int globalBin = settings.resolution_r * k + binj;
+            for(int binj = bin1; binj < bin2 + 1; ++binj)
+            {
+              r_j2 = r_j1 + R_bin_width;
+            
+              // average probability density in a bin given by gauss distribution with mean in mu 
+              double r_center = (r_j2 + r_j1) * 0.5f;
+              float weight = (mu - r_center) / settings.sigma;
+              weight = faster_exp( -0.5f * weight * weight ); // faster approximation of exp(x)
+            
+              // result is 2D histogram of several sinusoid functions f(phi) in convolution with gauss in r
+              int globalBin = settings.resolution_r * k + binj;
               dual_space[globalBin] += weight;   
-				      
-				      r_j1 = r_j2;
-			      }						
-          }			
+              
+              r_j1 = r_j2;
+            }                        
+          }            
         }
       }
     }
