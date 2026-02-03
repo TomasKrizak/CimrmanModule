@@ -27,6 +27,10 @@ namespace tkrec {
   using LinearFitHdl = std::shared_ptr<LinearFit>;
   using ConstLinearFitHdl = std::shared_ptr<const LinearFit>;
 
+  class Track;
+  typedef std::shared_ptr<Track> TrackHdl;
+  typedef std::shared_ptr<const Track> ConstTrackHdl;
+
 
   class Track
   {
@@ -105,12 +109,11 @@ namespace tkrec {
     
     void print(std::ostream & out_ = std::cout) const;
     
+    static Point get_intersection_2D(const TrackHdl & track1, const TrackHdl & track2); 
   };
   
-  typedef std::shared_ptr<Track> TrackHdl;
-  typedef std::shared_ptr<const Track> ConstTrackHdl;
   
-  Point get_intersection(const TrackHdl & track1, const TrackHdl & track2); 
+  
 
 } //  end of namespace tkrec
 

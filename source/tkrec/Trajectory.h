@@ -23,8 +23,14 @@ namespace tkrec {
   using PointHdl = std::shared_ptr<Point>;
   using ConstPointHdl = std::shared_ptr<const Point>;
   
+  
   class Trajectory
   {
+  public:
+  
+    enum EndPoint{ FRONT, BACK };
+    enum Type{ ELECTRON, ALPHA, ANY };
+
   private:
 		
     std::vector<PointHdl> trajectory_points; // startpoint, kink points and endpoint of trajectory

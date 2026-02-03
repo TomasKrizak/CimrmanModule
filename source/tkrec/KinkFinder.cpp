@@ -1,0 +1,334 @@
+// Cimrman headers
+#include "tkrec/KinkFinder.h"
+#include "tkrec/TrackerHit.h"
+#include "tkrec/Track.h"
+#include "tkrec/Algos.h"
+#include "tkrec/Geometry.h"
+
+// Standard headers
+#include <iostream>
+#include <cmath>
+#include <tuple>
+
+// ClassImp(tkrec::KinkFinder);
+
+namespace tkrec{
+    
+  KinkFinder::KinkFinder( TrackHdl _track1, PointHdl _endpoint1,
+              TrackHdl _track2, PointHdl _endpoint2,
+              const PolylinesConfig & _config,
+              const Geometry & _geom)
+    : track1( _track1),
+      endpoint1(_endpoint1),
+      track2( _track2),
+      endpoint2(_endpoint2),
+      config(_config),
+      geom(_geom) 
+  {
+    return;
+  }
+      
+  // passes if the 2D angular deviation is in bounds
+  bool KinkFinder::check_2D_angle( const double min_angle, const double max_angle ) const
+  {
+    if( status == Status::UNPROCESSED ) return false;
+       
+    // we need to calculate angle between the kink point and the opposite ends of the tracks
+    Point point1;
+    const auto & associations1 = track1->get_associations();
+    
+    // XXX I have no idea what is a good tolerance for points mismatch - but 1mm works fine
+    if( Point::distance_3D( associations1.front().point, endpoint1 ) < 1.0 )
+    {
+      point1 = *(associations1.back().point);
+    }
+    else
+    {
+      point1 = *(associations1.front().point);
+    }
+    
+    Point point2;
+    const auto & associations2 = track2->get_associations();
+    if( Point::distance_3D( associations2.front().point, endpoint2 ) < 1.0 )
+    {
+      point2 = *(associations2.back().point);
+    }
+    else
+    {
+      point2 = *(associations2.front().point);
+    }
+       
+    const double angle = Point::calculate_angle_2D(point1, kink_point, point2);
+    const double angular_deviation = M_PI - angle;
+    
+    return (min_angle <= angular_deviation && angular_deviation <= max_angle);
+  }
+  
+  // passes if the 3D angular deviation is in bounds
+  bool KinkFinder::check_3D_angle( const double min_angle, const double max_angle ) const
+  {
+    if( status == Status::UNPROCESSED ) return false;
+    
+    // we need to calculate angle between the kink point and the opposite ends of the tracks
+    Point point1;
+    const auto & associations1 = track1->get_associations();
+    if( Point::distance_3D( associations1.front().point, endpoint1 ) < 1.0 )
+    {
+      point1 = *(associations1.back().point);
+    }
+    else
+    {
+      point1 = *(associations1.front().point);
+    }
+    
+    Point point2;
+    const auto & associations2 = track2->get_associations();
+    if( Point::distance_3D( associations2.front().point, endpoint2 ) < 1.0 )
+    {
+      point2 = *(associations2.back().point);
+    }
+    else
+    {
+      point2 = *(associations2.front().point);
+    }
+
+    const double angle = Point::calculate_angle_3D(point1, kink_point, point2);
+    const double angular_deviation = M_PI - angle;
+    
+    return (min_angle <= angular_deviation && angular_deviation <= max_angle);
+  } 
+
+  // passes if the kink point is close enough to both tracks endpoints
+  bool KinkFinder::check_close_hits_2D( const double max_distance ) const
+  {
+     if( status == Status::UNPROCESSED ) return false;
+     
+    // TODO could be better then just the last hit? 
+     const double dist1 = Point::distance_2D( kink_point, *endpoint1 );
+     const double dist2 = Point::distance_2D( kink_point, *endpoint2 );
+     
+     return (dist1 < max_distance && dist2 < max_distance);
+  }
+  
+  // passes if the kink point is inside the tracker volume
+  bool KinkFinder::check_is_inside_tracker() const
+  {
+    if( status == Status::UNPROCESSED ) return false;
+    
+    // TODO there must be better way to check tracker volume
+    // geo locators to access geometry information
+    const snemo::geometry::gg_locator & ggLocator = geom.geo_loc->geigerLocator();    
+    
+    // x coordinate of the outside border of tracker (side 1) 
+    const double tracker_x_max = ggLocator.getXCoordOfLayer(1, 8) + geom.tc_radius;    
+    if( std::abs(kink_point.x) > tracker_x_max ) return false;
+    
+    // x coordinate of the inside border (source foil gap) of tracker (side 1)
+    const double tracker_x_min = ggLocator.getXCoordOfLayer(1, 0) - geom.tc_radius;
+    if( std::abs(kink_point.x) < tracker_x_min ) return false;
+
+    // y coordinate of the border of tracker (side 1)
+    const double tracker_y_max = ggLocator.getYCoordOfRow(1, 112) + geom.tc_radius;
+    if( std::abs(kink_point.y) > tracker_y_max ) return false;
+    
+    // TODO what about Z coordinate???
+    
+    // if all passes, returns true
+    return true;
+  }
+  
+  // passes if kink point is more than min_distance from mainwall
+  bool KinkFinder::check_distance_to_MW( const double min_distance ) const
+  { 
+    if( status == Status::UNPROCESSED ) return false;
+    
+    const snemo::geometry::calo_locator & caloLocator = geom.geo_loc->caloLocator();
+    const double mainwall_x_cord = caloLocator.getXCoordOfWall(1);
+    
+    return std::abs(kink_point.x) < (mainwall_x_cord - min_distance);
+  }
+  
+  // passes if kink point is more than min_distance from Xwall
+  bool KinkFinder::check_distance_to_XW( const double min_distance ) const
+  {
+    if( status == Status::UNPROCESSED ) return false;
+    
+    const snemo::geometry::xcalo_locator & xcaloLocator = geom.geo_loc->xcaloLocator();
+    const double X_wall_y_cord = xcaloLocator.getYCoordOfWall(1, 1);
+  
+    return std::abs(kink_point.y) < (X_wall_y_cord - min_distance);
+  }
+  
+  // passes if kink point is more than min_distance from source foil
+  bool KinkFinder::check_distance_to_SF( const double min_distance ) const
+  {
+    if( status == Status::UNPROCESSED ) return false;
+    
+    return (std::abs(kink_point.x) > min_distance);
+  }
+
+  // passes if the ends of the tracks are close enough in 2D
+  bool KinkFinder::check_are_ends_close_2D( const double max_distance ) const
+  {
+    if( status == Status::UNPROCESSED ) return false;
+    
+    const double distance_2D = Point::distance_2D( endpoint1, endpoint2 ); 
+    return distance_2D < max_distance;
+  }
+  
+  // passes if the ends of the tracks are close enough in 3D
+  bool KinkFinder::check_are_ends_close_3D( const double max_distance ) const
+  {
+    if( status == Status::UNPROCESSED ) return false;
+    
+    const double distance_3D = Point::distance_3D( endpoint1, endpoint2 ); 
+    return distance_3D < max_distance;
+  }
+  
+  // designed for large kink procedure
+  // passes if the vertical mismatch of the track in the kink point is small enough 
+  bool KinkFinder::check_vertical_distance( const double max_distance) const
+  {
+    if( status == Status::UNPROCESSED ) return false;
+    
+    const double z1 = track1->get_c() * kink_point.x + track1->get_d();
+    const double z2 = track2->get_c() * kink_point.x + track2->get_d();
+    
+    return std::abs(z2 - z1) < max_distance;		
+  }
+  
+  // designed for small kink procedure
+  // passes if the kink point is close enough to both lineear fits (not segments)
+  bool KinkFinder::check_middle_point_distance( const double max_distance) const
+  {
+    if( status == Status::UNPROCESSED ) return false;
+       
+    double distance1 = track1->horizontal_distance_to_line(kink_point); 
+    double distance2 = track2->horizontal_distance_to_line(kink_point);  
+               
+    return (distance1 < max_distance) && (distance2 < max_distance); 
+  }
+   
+  void KinkFinder::process(ConnectionStrategy strategy)
+  {
+    if( strategy == ConnectionStrategy::VERTICAL_ALIGNMENT )
+    {
+      large_kink_procedure();
+    }
+    else if( strategy == ConnectionStrategy::ENDPOINTS_MIDDLE )
+    {
+      small_kink_procedure();
+    }
+  }
+  
+  
+  void KinkFinder::large_kink_procedure()
+  {
+    DT_THROW_IF(endpoint1 == nullptr || endpoint2 == nullptr, std::logic_error, "Missing endpoints for kink investigation!");
+    
+    // connection strategy
+    kink_point = Track::get_intersection_2D(track1, track2);    
+    status = Status::CANDIDATE_LOCATED;
+    
+    // set of criteria
+    bool passed = check_are_ends_close_3D( config.max_trajectory_endpoints_distance );
+    if(not passed){
+      status = Status::KINK_NOT_FOUND;
+      return;
+    }
+    
+    passed = check_close_hits_2D( config.max_tracker_hits_distance );
+    if(not passed){
+      status = Status::KINK_NOT_FOUND;
+      return;
+    }
+    
+    passed = check_3D_angle( config.min_kink_angle, config.max_kink_angle );
+    if(not passed){
+      status = Status::KINK_NOT_FOUND;
+      return;
+    }
+    
+    passed = check_vertical_distance( config.max_vertical_distance );
+    if(not passed){
+      status = Status::KINK_NOT_FOUND;
+      return;
+    }
+    
+    passed = check_is_inside_tracker();
+    if(not passed){
+      status = Status::KINK_NOT_FOUND;
+      return;
+    }
+    
+    passed = check_distance_to_SF( config.min_distance_from_foil );
+    if(not passed){
+      status = Status::KINK_NOT_FOUND;
+      return;
+    }
+    
+    passed = check_distance_to_MW( config.min_distance_from_main_walls );
+    if(not passed){
+      status = Status::KINK_NOT_FOUND;
+      return;
+    }
+    
+    passed = check_distance_to_XW( config.min_distance_from_X_walls );
+    if(not passed){
+      status = Status::KINK_NOT_FOUND;
+      return;
+    }
+    
+    status = Status::KINK_FOUND; 
+  }
+  
+  void KinkFinder::small_kink_procedure()
+  {
+    DT_THROW_IF(endpoint1 == nullptr || endpoint2 == nullptr, std::logic_error, "Missing endpoints for kink investigation!");
+
+    // connection strategy
+    kink_point = Point::get_middle_point(endpoint1, endpoint2);
+    status = Status::CANDIDATE_LOCATED;
+    
+    // set of criteria
+    bool passed = check_are_ends_close_3D( config.max_trajectory_endpoints_distance );
+    if(not passed){
+      status = Status::KINK_NOT_FOUND;
+      return;
+    }
+    
+    passed = check_close_hits_2D( config.max_tracker_hits_distance );
+    if(not passed){
+      status = Status::KINK_NOT_FOUND;
+      return;
+    }
+    
+    passed = check_middle_point_distance( config.max_trajectories_middlepoint_distance );
+    if(not passed){
+      status = Status::KINK_NOT_FOUND;
+      return;
+    }
+    
+    passed = check_3D_angle( config.min_trajectory_connection_angle, config.max_trajectory_connection_angle );
+    if(not passed){
+      status = Status::KINK_NOT_FOUND;
+      return;
+    }
+    
+    status = Status::KINK_FOUND;
+  }
+
+  
+  KinkFinder::Status KinkFinder::get_status() const
+  {
+    return status;
+  }
+  
+  Point KinkFinder::get_kink_point() const
+  {
+    DT_THROW_IF(status == Status::UNPROCESSED, std::logic_error, "Kink point not constructed!");
+    
+    return kink_point;
+  }
+
+} //  end of namespace tkrec

@@ -23,6 +23,7 @@ list(APPEND Cimrman_HEADERS
   source/tkrec/Event.h
   source/tkrec/Likelihood.h
   source/tkrec/LinearFit.h
+  source/tkrec/KinkFinder.h
   source/tkrec/OMHit.h
   source/tkrec/Point.h
   source/tkrec/PreclusterSolution.h
@@ -44,6 +45,7 @@ list(APPEND Cimrman_SOURCES
   source/tkrec/Event.cpp
   source/tkrec/Likelihood.cpp
   source/tkrec/LinearFit.cpp
+  source/tkrec/KinkFinder.cpp
   source/tkrec/OMHit.cpp
   source/tkrec/Point.cpp
   source/tkrec/PreclusterSolution.cpp

@@ -262,7 +262,7 @@ namespace tkrec {
     return count;
   }
   
-  Point get_intersection(const TrackHdl & track1, const TrackHdl & track2)
+  Point Track::get_intersection_2D(const TrackHdl & track1, const TrackHdl & track2)
   {
       double a1 = track1->get_a();
       double b1 = track1->get_b();

@@ -39,8 +39,6 @@ namespace tkrec {
   };
 
 
-
-
   class Cluster
   {
   protected:
