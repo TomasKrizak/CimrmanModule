@@ -7,8 +7,6 @@
 #include <vector>
 
 // Bayeux headers
-#include <datatools/exception.h>
-#include <datatools/logger.h>
 #include <datatools/utils.h>
 
 namespace cimrman::datamodel {
@@ -50,10 +48,6 @@ namespace cimrman::datamodel {
     
     double phi_estimate = datatools::invalid_real();
     double r_estimate = datatools::invalid_real();
-
-  public:
-    
-    datatools::logger::priority verbosity = datatools::logger::PRIO_FATAL;
     
   public:
     

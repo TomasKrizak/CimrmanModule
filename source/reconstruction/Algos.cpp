@@ -1,6 +1,11 @@
 // Cimrman headers
 #include "reconstruction/Algos.h"
 #include "reconstruction/TrajectoryBuilder.h"
+#include "datamodel/Association.h"
+#include "datamodel/TrackerHit.h"
+#include "datamodel/LinearFit.h"
+#include "datamodel/Track.h"
+#include "datamodel/Point.h"
 
 // XXX Temporary root headers
 #include <TCanvas.h>
@@ -86,15 +91,6 @@ namespace cimrman {
                   "Invalid default sigma for drift radius"); 
       this->default_sigma_r = value / CLHEP::mm;
     }
-  
-    /*
-    if (config_.has_key("chi_square_threshold")) {
-      this->chi_square_threshold =
-        config_.fetch_dimensionless_real("chi_square_threshold");
-      DT_THROW_IF(this->chi_square_threshold < 0.0,
-		              std::logic_error,
-		              "Invalid chi_square_threshold value");
-    }*/
   
     //=======================================================
     //############# Electron clustering config ##############
@@ -494,83 +490,64 @@ namespace cimrman {
     set_event(event_);
     
     // step 1: Preclustering 
-    // dissects the event into preclusters = unrelated parts of event (in the context of tracking) 
+    // dissects the event into preclusters (sub-event) = unrelated parts of event (in the context of tracking) 
     // existing TCD bank can be used as preclustering if allowed in the configuration
     // separation based on: prompt / delayed hits and distance of tracker hits  
-    if( _event_->get_preclusters().empty() )
-    {
+    if( _event_->get_preclusters().empty() ) {
       DT_LOG_DEBUG(_config_.verbosity, "Step 1: Preclustering");
       precluster();
     }
-    else
-    {
+    else {
       DT_LOG_DEBUG(_config_.verbosity, "Skipping Step 1: Preclustering - TCD bank provided");
     }
     
-    // Most of the reconstruction is done separately for each "subevent/precluster" 
+    
+    // Most of the reconstruction is done separately for each precluster 
     for(auto & precluster : _event_->get_preclusters())
     {
       // Step 2: clustering
-      // prompt tracker hit clustering 
-      DT_LOG_DEBUG(_config_.verbosity, "Step 2: Prompt tracker hit clustering");
+      DT_LOG_DEBUG(_config_.verbosity, "  Step 2: Prompt tracker hit clustering");
       electron_clustering( precluster );
       
-      // delayed tracker hit clustering if allowed in the config
-      if (_config_.reconstruct_alphas)
-      {
-        DT_LOG_DEBUG(_config_.verbosity, "Step 2: Delayed tracker hit clustering");
+      if (_config_.reconstruct_alphas) {
+        DT_LOG_DEBUG(_config_.verbosity, "  Step 2: Delayed tracker hit clustering");
         alpha_clustering(precluster); 
       }
 
-      // Step 3: 
-      DT_LOG_DEBUG(_config_.verbosity, "Step 3: MLM line fitting + ambiguity checking and solving");
+      // Step 3: MLM fitting
+      DT_LOG_DEBUG(_config_.verbosity, "  Step 3: MLM line fitting + ambiguity checking and solving");
       make_MLM_fits(precluster);
       
-      // Step 4:
-      DT_LOG_DEBUG(_config_.verbosity, "Step 4: Linear fits are associated to tracker hits and combined into a precluster solutions");
+      // Step 4: creating precluster solutions
+      DT_LOG_DEBUG(_config_.verbosity, "  Step 4: Linear fits are associated to tracker hits and combined into a precluster solutions");
       combine_into_precluster_solutions(precluster);
       
       
-      // Step 5:    
-      if (_config_.electron_mode == ElectronRecMode::polyline)
+      // Trajectory building is done separately for each "precluster_solution" 
+      // ( = unique selection of fits explaining the given precluster) 
+      for(auto & precluster_solution : precluster->get_precluster_solutions())
       {
-        DT_LOG_DEBUG(_config_.verbosity, "Step 5: Creating polyline trajectories");
-      }
-      else if (_config_.electron_mode == ElectronRecMode::line)
-      {
-        DT_LOG_DEBUG(_config_.verbosity, "Step 5: Creating line trajectories");
-      }
-      create_trajectories(precluster);
+        // Step 5: identifying ends of the segments
+        DT_LOG_DEBUG(_config_.verbosity, "    Step 5: Creating line trajectories");
+        create_line_trajectories(precluster_solution);
       
-      
-      /*
-      if (_config_.reconstruct_alphas)
-      {
-         DT_LOG_DEBUG(_config_.verbosity, "Step 5: Creating line trajectories (alpha trajectories)");
-        create_line_trajectories( precluster, Trajectory::Type::ALPHA );
+        // Step 6: building polylines
+        if( precluster->is_prompt() && 
+            _config_.electron_mode == ElectronRecMode::polyline ) {      
+          DT_LOG_DEBUG(_config_.verbosity, "    Step 6: Creating polyline trajectories");
+          build_polylines(precluster_solution);
+          refine_polylines(precluster_solution);
+          refine_clustering(precluster_solution);
+        }
+        
+        // Step 7: trajectory evaluation
+        DT_LOG_DEBUG(_config_.verbosity, "    Step 7: Evaluating trajectories");
+        evaluate_trajectories(precluster_solution);
       }
-    
-      // Step 6:
-      if (_config_.electron_mode == ElectronRecMode::polyline)
-      {
-        DT_LOG_DEBUG(_config_.verbosity, "Step 6: Trajectory kinks and clustering refinements");
-        refinements(precluster);
-      }
-      else
-      {
-        DT_LOG_DEBUG(_config_.verbosity, "Skipping step 6: not available for line trajectories");
-      }
-      */
-      
-
-
-      // Step 7:
-      DT_LOG_DEBUG(_config_.verbosity, "Step 7: Evaluating trajectories");
-      evaluate_trajectories(precluster);
     }
 
     // Step 8: solutions for individual preclusters are combined and joined together into full event solutions
-    DT_LOG_DEBUG(_config_.verbosity, "Step 8: Combining precluster solutions into all solutions");
+    DT_LOG_DEBUG(_config_.verbosity, "Step 8: Combining precluster solutions into event solutions");
     create_solutions();
 
 
@@ -589,7 +566,6 @@ namespace cimrman {
     
     return;
   }
-
   
 //____________________________________________________________________________
 //////////////////////////////////////////////////////////////////////////////
@@ -611,6 +587,7 @@ namespace cimrman {
       {
         if(!hit->has_valid_R())
         {
+          // invalid_tracker_hits.push_back(hit);
           continue;        
         }
         
@@ -925,949 +902,7 @@ namespace cimrman {
 
 //____________________________________________________________________________
 //////////////////////////////////////////////////////////////////////////////
-//// step 3: MLM line fitting + ambiguity checking and solving ///////////////
-//////////////////////////////////////////////////////////////////////////////
-
-  // master function of step 3
-  void Algos::make_MLM_fits(PreclusterHdl precluster)
-  {
-    // fits every prompt cluster
-    for(auto & cluster : precluster->get_clusters())
-    { 
-      // LinearFit object is created (with phi_estimate, r_estimate)
-      LinearFitHdl primary_fit = std::make_shared<LinearFit>(cluster);
-   		cluster->get_linear_fits().push_back(primary_fit);
-      
-      // check and detects the type of ambiguity of a cluster
-      detect_ambiguity_type(cluster);
-      
-      // creates mirror fit obejct in case of ambiguous clusters with its own likelihood support structure
-      create_mirror_fit(cluster);
-      
-      // for both fits (in case of ambiguity) finds ML estimate for (phi, r, theta, h)       
-      for(auto & fit : cluster->get_linear_fits()) 
-      {
-        make_ML_estimate(fit);
-        //TODO: chi2 limiter could be implemented here to not propagate bad fits further
-        // ,but would require a dedicated function for calculation (fits dont yet have chi2) 
-      }
-    }
-    return;
-  }
-  
-  void Algos::make_ML_estimate(LinearFitHdl fit)
-  {
-    // Newton's method for finding a root of a function applied on the derivative of likelihood to obtain optimal phi.
-    // Likelihood is 4D function but 3 variables are solved analytically as a function of phi. 
-    Likelihood & lik = fit->likelihood;
-    double phi_0 = fit->phi;
-    const double h = 0.000001; // has to be small but not too small - ideally roughly half the available decimal precision to maximize numerical stability and calculation precision
-    for(int i = 0; i < 3; ++i)
-    {
-      double derivative = lik.log_likelihood_derivative(phi_0);
-      phi_0 += -h * derivative / (lik.log_likelihood_derivative(phi_0 + h) - derivative);
-    }
-    const double sin_phi0 = std::sin(phi_0);
-    const double cos_phi0 = std::cos(phi_0);
-    const double tan_phi0 = std::tan(phi_0);
-
-    double r_0 = (lik.Rr + lik.Rx * sin_phi0 - lik.Ry * cos_phi0) / lik.R;
-    
-    fit->phi = phi_0;
-    fit->r = r_0;
-    
-   
-    
-    fit->a = tan_phi0;
-    fit->b = -r_0 / cos_phi0;
-    
-    // calculating chi squared
-    double min_likelihood = -lik.log_likelihood_value(phi_0);
-    double no_of_measurements = lik.no_R + lik.no_Z;
-    double chi_squared = min_likelihood / no_of_measurements;
-    fit->chi_squared = chi_squared;
-   
-    // if at least 2 tracker hits have usable Z position, 3D ML fit is calculated
-    if( lik.no_Z > 1 )
-    {
-    
-      double denominator = (lik.Cov_Zyy * sin_phi0 * sin_phi0) 
-                          + (2.0 * lik.Cov_Zxy * sin_phi0 * cos_phi0) 
-                          + (lik.Cov_Zxx * cos_phi0 * cos_phi0);
-      
-      if( denominator != 0.0 )
-      {
-        double tan_theta = (lik.Cov_Zzy * sin_phi0 + lik.Cov_Zzx * cos_phi0) / denominator;
-        double h_temp = (lik.Zz / lik.Z) - (lik.Zx * cos_phi0 + lik.Zy * sin_phi0) * tan_theta / lik.Z;
-        
-        fit->h = h_temp;
-        fit->theta = std::atan(tan_theta);
-
-        fit->c = tan_theta / cos_phi0;
-        fit->d = h_temp - (r_0 * tan_phi0 * tan_theta);
-      }
-    }
-    
-    // in case of only 1 tracker hit Z position the fit goes horizontally at the height of the one tracker hit
-    else if( lik.no_Z == 1 ) 
-    {
-      
-      fit->h = lik.Zz / lik.Z;
-      fit->theta = 0.0;
-      
-      fit->c = 0.0;
-      fit->d = lik.Zz / lik.Z;
-    } 
-    
-    DT_LOG_DEBUG(_config_.verbosity, "Linear fit created: (" << fit->phi << " rad, " 
-                                                             << fit->r << " mm, " 
-                                                             << fit->theta << " rad, "
-                                                             << fit->h << " mm)" );
-    DT_THROW_IF(lik.no_Z == 0, std::logic_error, "No Z infromation available for fitting!");
-    
-    return;
-  }
-  
-  void Algos::detect_ambiguity_type(ClusterHdl cluster)
-  {
-    const std::vector<TrackerHitHdl> hits = cluster->get_tracker_hits();
-    
-    // detecting ambiguity type
-    const double x0 = hits.front()->get_x();
-    const double y0 = hits.front()->get_y();
-    bool ambiguous;
-    
-    // type 1 == mirror image along line x = x0 
-    ambiguous = true;
-    for(auto i = 1u; i < hits.size(); ++i)
-    {	
-      if( x0 != hits[i]->get_x() )
-      {
-        ambiguous = false;
-        break;
-      }
-    }
-    if( ambiguous == true )
-    {
-      cluster->set_ambiguity_type( Ambiguity::Vertical );
-      DT_LOG_DEBUG(_config_.verbosity, "Cluster ambiguity: Vertical");
-      return;
-    }
-    
-    // type 2 == mirror image along line y = y0 
-    ambiguous = true;
-    for(auto i = 1u; i < hits.size(); ++i)
-    {	
-      if( y0 != hits[i]->get_y() )
-      {
-        ambiguous = false;
-        break;
-      }
-    }
-    if( ambiguous == true )
-    {
-      cluster->set_ambiguity_type( Ambiguity::Horizontal );
-      DT_LOG_DEBUG(_config_.verbosity, "Cluster ambiguity: Horizontal");
-    	return;
-    }
-    
-    // type 3 == mirror image along line y = x + (y0-x0) 
-    ambiguous = true;
-    for(auto i = 1u; i < hits.size(); ++i)
-    {	
-      if( y0 - hits[i]->get_y() != x0 - hits[i]->get_x() )
-      {
-        ambiguous = false;
-        break;
-      }
-    }
-    if( ambiguous == true )
-    {
-      cluster->set_ambiguity_type( Ambiguity::AntiDiagonal );
-      DT_LOG_DEBUG(_config_.verbosity, "Cluster ambiguity: Anti-diagonal");
-      return;
-    }
-    
-    // type 4 == mirror image along line y = -x + (y0-x0) 
-    ambiguous = true;
-    for(auto i = 1u; i < hits.size(); ++i)
-    {	
-      if( y0 - hits[i]->get_y() != hits[i]->get_x() - x0 )
-      {
-        ambiguous = false;
-       break;
-      }
-    }
-    if( ambiguous == true )
-    {
-      cluster->set_ambiguity_type( Ambiguity::MainDiagonal );
-      DT_LOG_DEBUG(_config_.verbosity, "Cluster ambiguity: Main-diagonal");
-    	return;
-    }
-
-    cluster->set_ambiguity_type( Ambiguity::None );
-    DT_LOG_DEBUG(_config_.verbosity, "Cluster ambiguity: None");
-    return;
-  }
-  
-  void Algos::create_mirror_fit(ClusterHdl cluster)
-  {  
-    if( cluster->get_ambiguity_type() == Ambiguity::None )
-    {
-      return;
-    }
-    if( cluster->get_linear_fits().size() != 1 ) 
-    {
-      return;
-    }
-    
-    ConstLinearFitHdl fit = cluster->get_linear_fits().front();
-    const std::vector<TrackerHitHdl> hits = cluster->get_tracker_hits();
-    double x0 = hits.front()->get_x();
-    double y0 = hits.front()->get_y();
-    
-    // new copied LinearFit object 
-    LinearFitHdl mirror_fit = std::make_shared<LinearFit>(fit); 
-    cluster->get_linear_fits().push_back(mirror_fit);
-    
-    double a0 = fit->a;
-    double b0 = fit->b;
-    double mirror_a, mirror_b;
-    
-    switch(cluster->get_ambiguity_type())
-    {
-    case Ambiguity::Vertical:
-      mirror_a = -a0;
-      mirror_b = 2.0 * a0 * x0 + b0;
-      break;
-    case Ambiguity::Horizontal:
-      mirror_a = -a0;
-      mirror_b = 2.0 * y0 - b0;
-      break;
-    case Ambiguity::AntiDiagonal:
-      mirror_a = 1.0 / a0;
-      mirror_b = y0 - x0 - (b0 / a0) + (y0 - x0) / a0;
-      break;
-    case Ambiguity::MainDiagonal:
-      mirror_a = 1.0 / a0;
-      mirror_b = y0 + x0 + (b0 / a0) - (y0 + x0) / a0;
-      break;
-    }  
-    
-    double mirror_phi = std::atan(mirror_a);
-    double mirror_r = -mirror_b / std::sqrt(mirror_a * mirror_a + 1.0);
-	  
-    mirror_fit->a = mirror_a;
-    mirror_fit->b = mirror_b;
-    mirror_fit->phi = mirror_phi;
-    mirror_fit->r = mirror_r;
-    
-    cluster->set_phi_estimate( mirror_phi );
-    cluster->set_r_estimate( mirror_r );
-    
-    // with the exception of type 1, mirrot fits correspond to the opposite halves of tracker hits
-    // this changes the sign of the sums in the likelihood that contain drift radii
-    if( cluster->get_ambiguity_type() != Ambiguity::Vertical )
-    {  
-      mirror_fit->likelihood.Rr *= -1.0;
-      mirror_fit->likelihood.Rrx *= -1.0;
-      mirror_fit->likelihood.Rry *= -1.0;
-      mirror_fit->likelihood.Cov_Rrx *= -1.0;
-      mirror_fit->likelihood.Cov_Rry *= -1.0;
-    }
-    
-    return;
-  }
-  
-//____________________________________________________________________________
-//////////////////////////////////////////////////////////////////////////////
-//// step 4: Linear fits are associated to tracker hits //////////////////////
-////         and combined into a precluster solutions   //////////////////////
-//////////////////////////////////////////////////////////////////////////////
-  
-  // master function of step 4
-  void Algos::combine_into_precluster_solutions(PreclusterHdl precluster)
-  {
-    // counting the number (N) of ambiguous clusters 
-    int no_ambiguities = 0;
-    for(auto & cluster : precluster->get_clusters())
-    {
-      if( cluster->get_ambiguity_type() != Ambiguity::None )
-      {
-        no_ambiguities++;
-      }
-    }
-    // TODO : limit the number of ambiguities? What is too much?
-    // 2^N precluster solutions should exist (each combination of ambiguities)
-    int no_precluster_solutions = 1 << no_ambiguities;
-    std::vector<PreclusterSolutionHdl> & precluster_solutions = precluster->get_precluster_solutions();
-    precluster_solutions.reserve( no_precluster_solutions );
-    // creating empty solutions
-    for(int i = 0; i < no_precluster_solutions; i++)
-    { 
-      PreclusterSolutionHdl precluster_solution = std::make_shared<PreclusterSolution>();
-      precluster_solutions.push_back(precluster_solution);
-      precluster_solution->get_unclustered_tracker_hits() = precluster->get_unclustered_const_tracker_hits();
-    }
-    
-    // filling the precluster solutions with different track combinations
-    int N1 = 1;
-    for(const auto & cluster : precluster->get_clusters())
-    {
-      // for each unambiguous cluster its single track is added to all solutions
-      if(cluster->get_linear_fits().size() == 1u)
-      {
-        for(auto & precluster_solution : precluster_solutions)
-        {  
-          const auto hits = cluster->get_const_tracker_hits();
-          TrackHdl track = std::make_shared<Track>(cluster->get_linear_fits().front(), hits);
-          track->sort_associations();
-          precluster_solution->add_track(track);
-        }
-      }
-      
-      // for each ambiguous cluster its two tracks are added to different halves of solutions
-      // example scheme for 3 ambiguities
-      //  [0,0,0,0,1,1,1,1]
-      //  [0,0,1,1,0,0,1,1]
-      //  [0,1,0,1,0,1,0,1]
-      else if(cluster->get_linear_fits().size() == 2u)
-      {
-        int k = 0;
-        for(int i = 0; i < N1; ++i)
-        {
-          int N2 = no_precluster_solutions / (N1 * 2);
-          for(int j = 0; j < N2; ++j)
-          {  
-            const auto hits = cluster->get_const_tracker_hits();
-            TrackHdl track = std::make_shared<Track>(cluster->get_linear_fits()[0], hits);
-            track->sort_associations();
-            precluster_solutions[k]->add_track(track);
-            ++k;
-          }
-          for(int j = 0; j < N2; ++j)
-          {  
-            const auto hits = cluster->get_const_tracker_hits();
-            TrackHdl track = std::make_shared<Track>(cluster->get_linear_fits()[1], hits);
-            track->sort_associations();
-            precluster_solutions[k]->add_track(track);
-            ++k;
-          }
-        }
-        N1 *= 2;
-      }
-    }
-    return;
-  }
-  
-  
-//____________________________________________________________________________
-//////////////////////////////////////////////////////////////////////////////
-//// step 5: Trajectory building /////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////
-  
-      
-  // master function of step 5 (Tracks -> Trajectories)
-  void Algos::create_trajectories(PreclusterHdl precluster)
-  {
-    // first every track is processed into a line trajectory (the endpoints are identified)  
-    create_line_trajectories(precluster);
-  
-    // early exit for delayed preclusters - polyline tracks for alphas do not make sense
-    if( precluster->is_delayed() ) return;
-    
-    // early exit if polyline tracking is disabled
-    if( _config_.electron_mode == ElectronRecMode::line ) return;
-  
-    // processed separately for each precluster solution
-    for(auto & precluster_solution : precluster->get_precluster_solutions())
-    {
-      // the difficult connection process it outsourced to a dedicated TrajectoryBuilder worker class
-      TrajectoryBuilder builder(precluster_solution, _config_.polylines, _geom_ );
-      builder.add_connection_strategy(KinkFinder::ConnectionStrategy::VERTICAL_ALIGNMENT);
-      builder.add_connection_strategy(KinkFinder::ConnectionStrategy::ENDPOINTS_MIDDLE);
-      builder.process();
-      
-      // refining caused problems
-      for(auto & trajectory : precluster_solution->get_trajectories())
-      {
-        // unnecessary if no kink has been found
-        if( trajectory->has_kink() )
-        {
-          // connection into polyline can make some hits associated beyond the kink point (out of bound association)
-          remove_out_of_bound_associations(precluster_solution, trajectory);
-          
-           // created connection changes the association points -> needs to be updated
-          trajectory->update_segments();
-        }
-      }
-      
-      // trying to add unclustered tracker hits to existing trajectories
-      refine_clustering(precluster_solution);
-    }
-  }
-    
-  
-  void Algos::create_line_trajectories(PreclusterHdl precluster, Trajectory::Type type)
-  {    
-    switch(type)
-    {
-      case Trajectory::Type::ELECTRON:
-        if(precluster->is_delayed()) return;    
-        break;
-        
-      case Trajectory::Type::ALPHA:
-        if(precluster->is_prompt()) return;
-        break;
-        
-      case Trajectory::Type::ANY:
-        break;
-    }
-    
-    // processed separately for each precluster solution
-    for(auto & precluster_solution : precluster->get_precluster_solutions())
-    {
-      std::vector<TrackHdl> & untrajectorized_tracks = precluster_solution->get_unprocessed_tracks();
-      std::vector<TrajectoryHdl> & trajectories = precluster_solution->get_trajectories();
-      for(auto & trajectory_candidate : untrajectorized_tracks)
-      {
-        // new Trajectory object for each found trajectory candidate
-        TrajectoryHdl trajectory = std::make_shared<Trajectory>(trajectory_candidate);
-        trajectories.push_back(trajectory);
-        create_line_trajectory_points(trajectory);  
-      }       
-      untrajectorized_tracks.clear();
-    }
-    return;
-  }
-  
-  // for a simple trajectory without kinks only the endpoint are created    
-  void Algos::create_line_trajectory_points(TrajectoryHdl trajectory)
-  {
-    DT_THROW_IF(trajectory->get_segments().size() != 1, std::logic_error, "No line trajectory for creating trajectory points");
-
-    TrackHdl track = trajectory->get_segments().front();
-    std::vector<PointHdl> & trajectory_points = trajectory->get_trajectory_points();
-        
-    ConstPointHdl point1 = track->get_associations().front().point;
-    ConstPointHdl point2 = track->get_associations().back().point;
-    
-    trajectory_points.push_back(std::make_shared<Point>(point1));
-    trajectory_points.push_back(std::make_shared<Point>(point2));
-     
-    return;
-  }
-  
-  
-  // checks whether all tracker hits are associated to correct segment inside a polyline trajectory
-  // if not - associates it to the correct segment or removes it from the trajectory
-  void Algos::remove_out_of_bound_associations(PreclusterSolutionHdl precluster_solution, TrajectoryHdl trajectory)
-  {
-    // tolerance mainly for comparing two doubles 
-    const double numerical_tolerance = 0.01;
-    
-    std::vector<TrackHdl> & segments = trajectory->get_segments();
-    std::vector<PointHdl> & traj_points = trajectory->get_trajectory_points();
-    std::vector<ConstTrackerHitHdl> & unclustered_tracker_hits = precluster_solution->get_unclustered_tracker_hits();
-    
-    for(auto i = 0u; i < segments.size(); ++i)
-    {
-      ConstPointHdl start = traj_points[i];
-      ConstPointHdl end   = traj_points[i+1];
-      double t_start = segments[i]->calculate_t(start);
-      double t_end = segments[i]->calculate_t(end);
-      if(t_start > t_end)
-      {      
-        std::swap(t_start, t_end);
-      }
-     
-      std::vector<Association> & associations = segments[i]->get_associations(); 
-      auto j = 0u;
-      while(j < associations.size())
-      {
-        ConstTrackerHitHdl hit = associations[j].tracker_hit;
-        
-        double t_j = associations[j].parameter_t;
-        // checking if the point is in bounds of its segments (correct association)
-        if( (t_start <= t_j + numerical_tolerance) && (t_j - numerical_tolerance <= t_end) ) 
-        {
-          ++j;
-          continue;
-        }
-        // erasing the hit association point from the trajectory
-        associations.erase(associations.begin() + j);
-        
-        // marking the hit as unclustered
-        unclustered_tracker_hits.push_back(hit);
-      }
-    }
-    return;
-  }   
-  
-  // goes through unclustered tracker hits of a precluster solution and checks
-  // if it can be associated to some segment of some trajectory
-  void Algos::refine_clustering(PreclusterSolutionHdl precluster_solution)
-  {
-    const double distance_threshold = _config_.clustering.hit_association_distance;
-    const double max_extention_distance = _config_.polylines.max_extention_distance;
-    
-    auto & unclustered_tracker_hits = precluster_solution->get_unclustered_tracker_hits();
-    auto & trajectories = precluster_solution->get_trajectories();
-    
-    if(unclustered_tracker_hits.size() == 0 || trajectories.size() == 0) return; 
-    
-    // computing parametric bounds of segments of trajectories
-    std::vector<std::vector<double>> t_starts;
-    std::vector<std::vector<double>> t_ends;
-    t_starts.reserve(trajectories.size());
-    t_ends.reserve(trajectories.size());
-    for(auto & trajectory : trajectories)
-    {
-      auto & traj_points = trajectory->get_trajectory_points(); 
-      auto & segments = trajectory->get_segments();
-      std::vector<double> trajectory_starts;
-      std::vector<double> trajectory_ends;
-      trajectory_starts.reserve(segments.size());
-      trajectory_ends.reserve(segments.size());
-
-      for(auto i = 0u; i < segments.size(); ++i)
-      {
-        ConstPointHdl start = traj_points[i];
-        ConstPointHdl end = traj_points[i+1];
-        
-        double t_start = segments[i]->calculate_t(start);
-        double t_end = segments[i]->calculate_t(end);
-        trajectory_starts.push_back(t_start);
-        trajectory_ends.push_back(t_end);
-      }
-      t_starts.push_back(trajectory_starts);
-      t_ends.push_back(trajectory_ends);
-    }
-    
-    // looking for good associations
-    auto i = 0u;
-    while(i < unclustered_tracker_hits.size())
-    {
-      ConstTrackerHitHdl hit = unclustered_tracker_hits[i];
-      const double hit_x = hit->get_x();
-      const double hit_y = hit->get_y();
-      const double hit_R = hit->get_R();
-      bool clustered = false;
-      for(auto j = 0u; j < trajectories.size(); ++j)
-      {
-        if( clustered ) break;
-        
-        auto & segments = trajectories[j]->get_segments();
-        auto & traj_points = trajectories[j]->get_trajectory_points(); 
-        for(auto k = 0u; k < segments.size(); ++k)
-        {
-          const double cos_phi = std::cos(segments[k]->get_phi());
-          const double sin_phi = std::sin(segments[k]->get_phi());
-          
-      // 1. checking if the hit is close to the line (segment without bounds)
-          //TODO possible to add vertical distance as well
-          double distance = std::abs(segments[k]->get_r() - hit_x * sin_phi + hit_y * cos_phi) - hit_R;
-          if( std::abs(distance) > distance_threshold )
-          { 
-                continue;
-          }
-                  
-     // 2. checking if the hit is within bounds of the segment
-          bool association_found = false;
-          const double t = hit_x * cos_phi + hit_y * sin_phi;          
-          const double t_start = t_starts[j][k];
-          const double t_end = t_ends[j][k];
-          
-          auto position = 0u;
-          std::vector<Association> & associations_k = segments[k]->get_associations();
-
-          // hit might not be within the current segment ends, but might align well if we prolong the segment a little 
-          // only the first and last segment can be prolonged! cases (k == 0) or (k == segments.size() - 1)
-          bool trajectory_extention_needed = false;
-          // new end_point in case of extention
-          PointHdl end_point;             
-       
-        // A) tracker hit is in the middle of existing segment (no extentions)
-          if(std::min(t_start, t_end) <= t &&
-             std::max(t_start, t_end) >= t)
-          {
-            association_found = true;
-            
-            // finding where the hit belongs on the line (tracker_hits and tracker_hit_points are sorted vectors)
-            while(position < associations_k.size())
-            {
-              if(t < associations_k[position].parameter_t)
-              {
-                break;
-              }
-              else
-              {
-                position++;           
-              }
-            }        
-          }
-          
-        // B) tracker hit can be added by extending the first segment 
-          else if( k == 0 )
-          {
-            // checking if the potential extention is in the right direction 
-            if( (t_end > t_start && t < t_start) ||
-                (t_end < t_start && t >= t_start) )
-            {
-              const double distance = std::abs(t - t_start);
-              if(distance < max_extention_distance)
-              {
-                association_found = true;
-                trajectory_extention_needed = true;
-                position = 0;
-                end_point = traj_points.front();
-              }
-            }
-          }
-          
-        // C) tracker hit can be added by extending the last segment 
-          else if( k == segments.size() - 1 )
-          {
-            // checking if the potential extention is in the right direction
-            if( (t_end > t_start && t >= t_end) ||
-                (t_end < t_start && t <= t_end) )
-            {
-              const double distance = std::abs(t - t_end);
-              if(distance < max_extention_distance)
-              {
-                association_found = true;
-                trajectory_extention_needed = true;
-                position = associations_k.size();
-                end_point = traj_points.back();
-              }
-            }
-          } 
-          
-          
-      // 3. if good option found, the tracker hit is associated
-          if( association_found )
-          {
-            Association new_association(hit);
-            new_association.parameter_t = t;
-            
-            // creating new association point and storing at the right place
-            double x = t * cos_phi + segments[k]->get_r() * sin_phi;
-            double y = t * sin_phi - segments[k]->get_r() * cos_phi;
-            double z = t * std::tan(segments[k]->get_theta()) + segments[k]->get_h();
-            new_association.point = std::make_shared<Point>(x, y, z); 
-            associations_k.insert(associations_k.begin() + position, new_association);
-            
-            if(trajectory_extention_needed)
-            {
-              end_point->x = x;
-              end_point->y = y;
-              end_point->z = z;
-            }
-
-            unclustered_tracker_hits.erase(unclustered_tracker_hits.begin() + i);
-            clustered = true;
-            break;
-          }
-        }
-      }
-      if(not clustered)
-      {
-        i++;
-      }
-    }
-    
-    return;
-  }
-  
-//____________________________________________________________________________
-//////////////////////////////////////////////////////////////////////////////
-//// step 7: Trajectory refinement ///////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////
-    
-  // master function of step 7
-  //  - fit quality calculation
-  void Algos::evaluate_trajectories(PreclusterHdl precluster)
-  { 
-    for(auto & precluster_solution : precluster->get_precluster_solutions())
-    {
-      // calculating all fit quality metrics
-      for(auto & trajectory : precluster_solution->get_trajectories())
-      {
-        evaluate_trajectory(trajectory);
-      }
-    }
-    return;
-  }
-  
-  // calculates mean square errors and chi squares of trajectories
-  void Algos::evaluate_trajectory(TrajectoryHdl trajectory)
-  {   
-    double chi_squared = 0.0;
-    double chi_squared_R = 0.0;
-    double chi_squared_Z = 0.0;
-    
-    double MSE = 0.0;
-    double MSE_R = 0.0;
-    double MSE_Z = 0.0;
-  
-    // number of measurements of R and Z used in the fit
-    int no_R = 0;
-    int no_Z = 0;
-    
-    // degrees of freedom
-    int DOF_R = 0;
-    int DOF_Z = 1;
-    
-    for(auto & segment : trajectory->get_segments())
-    {
-      segment->evaluate();
-      
-      const auto & associations = segment->get_associations();
-      int no_R_seg = std::count_if(associations.begin(),
-                           associations.end(),
-                           [](const Association & association){
-                             return association.tracker_hit->has_valid_R();
-                           });
-      no_R += no_R_seg;   
-      int no_Z_seg = std::count_if(associations.begin(),
-                           associations.end(),
-                           [](const Association & association){
-                             return association.tracker_hit->has_valid_Z();
-                           });  
-      no_Z += no_Z_seg;
-      
-      MSE_R += segment->get_square_error_R();
-      MSE_Z += segment->get_square_error_Z();  
-                    
-      chi_squared_R += segment->get_chi_squared_R();
-      chi_squared_Z += segment->get_chi_squared_Z();
-      
-      DOF_R += 2;
-      DOF_Z += 1;
-    }
-    MSE = (MSE_R + MSE_Z);
-    chi_squared = (chi_squared_R + chi_squared_Z);
-    
-    // mean square error is the sum of square errors of all segments divided by the number of measurements
-    MSE_R = MSE_R / double(no_R);
-    if(no_Z == 0)
-    {
-    	MSE_Z = datatools::invalid_real();
-    }
-    else
-    {
-      MSE_Z = MSE_Z / double(no_Z);
-    }
-    MSE = MSE / double(no_R + no_Z);
-    
-    // chi_squared is the sum of chi_squares of all segments divided by (number_of_measurements - DOF)
-    if(no_R - DOF_R > 0)
-    {
-      chi_squared_R = chi_squared_R / double(no_R - DOF_R);    
-    }
-    else
-    {
-      chi_squared_R = datatools::invalid_real();
-    }
-    
-    if(no_Z - DOF_Z > 0)
-    {
-      chi_squared_Z = chi_squared_Z / double(no_Z - DOF_Z);
-    }
-    else
-    {
-      chi_squared_Z = datatools::invalid_real();
-    }
-    
-    if(no_R + no_Z - DOF_R - DOF_Z > 0)
-    {
-      chi_squared = chi_squared / double(no_R + no_Z - DOF_R - DOF_Z);    
-    }
-    else
-    {
-      chi_squared_Z = datatools::invalid_real();
-    }
-
-    trajectory->set_MSE( MSE );
-    trajectory->set_MSE_R( MSE_R );
-    trajectory->set_MSE_Z( MSE_Z );
-    
-    trajectory->set_chi_squared( chi_squared );
-    trajectory->set_chi_squared_R( chi_squared_R );
-    trajectory->set_chi_squared_Z( chi_squared_Z );
-    return;
-  } 
-    
-
-//____________________________________________________________________________
-//////////////////////////////////////////////////////////////////////////////
-//// step 8: Combining precluster solutions into all solutions ///////////////
-//////////////////////////////////////////////////////////////////////////////
-  
-  // master function of step 8
-  void Algos::create_solutions()
-  {
-    // creating all unique combinations of all precluster solutions
-    combine_precluster_solutions_into_solutions();
-    
-    // calculates some quality indicators of the solutions
-    evaluate_solutions();
-        
-    // putting better solutions at the front (custom compare function) 
-    auto & solutions = _event_->get_solutions();
-    std::sort(solutions.begin(), solutions.end(), compare_solutions); 
-    
-    // removing suboptimal solutions from the collection
-    if( _config_.keep_only_best_solutions )
-    {
-      remove_suboptimal_solutions();
-    }
-  }
-  
-  void Algos::combine_precluster_solutions_into_solutions()
-  {
-    // caluclating needed number of solutions
-    int no_solutions = 1;
-    for(auto & precluster : _event_->get_preclusters())
-    {
-      int size_of_precluster = precluster->get_precluster_solutions().size(); 
-      if( size_of_precluster != 0 )
-      {
-        no_solutions *= size_of_precluster;
-      }
-    }
-    if(no_solutions == 0) return;
-    // TODO: limit the number of solutions?
-    
-    std::vector<SolutionHdl> & solutions = _event_->get_solutions();
-    solutions.reserve( no_solutions );
-    solutions.push_back( std::make_shared<Solution>() );
-    
-    // constructing each solution as a unique combination of precluster solutions
-    // each solution points to exactly one precluster solution of each cluster
-    for(auto & precluster : _event_->get_preclusters())
-    {
-      std::vector<PreclusterSolutionHdl> & precluster_solutions = precluster->get_precluster_solutions(); 
-      
-      int no_copied_solution = solutions.size();
-      for(auto i = 1u; i < precluster_solutions.size(); i++)
-      {
-        for(int j = 0; j < no_copied_solution; j++)
-        {
-          solutions.push_back(std::make_shared<Solution>( solutions[j]->get_precluster_solutions() ));
-        }
-      }
-      
-      for(auto i = 0u; i < precluster_solutions.size(); i++)
-      {
-        for(int j = 0; j < no_copied_solution; j++)
-        {
-          auto & prec_sol = solutions[i * no_copied_solution + j]->get_precluster_solutions();
-          prec_sol.push_back( precluster_solutions[i] );
-        }
-      }
-    }
-  }
-  
-  bool Algos::compare_solutions(const SolutionHdl solution1, const SolutionHdl solution2)
-  {
-    //TODO not sure how exactly shoudl this work
-    
-    // 1. criteria: total number of identified linear segments
-    // (more succesull fits -> better)
-    unsigned int no_segments1 = solution1->get_num_of_segments();
-    unsigned int no_segments2 = solution2->get_num_of_segments();
-    if( no_segments1 != no_segments2 )
-    {
-      return (no_segments1 > no_segments2);
-    }
-    
-    // 2. criteria: total number of trajectories 
-    // (less trajectories -> more connected -> better)
-    unsigned int no_trajectories1 = solution1->get_num_of_trajectories();
-    unsigned int no_trajectories2 = solution2->get_num_of_trajectories();
-    if( no_trajectories1 != no_trajectories2 )
-    {
-      return (no_trajectories1 < no_trajectories2);
-    }
-    
-    // 3. criteria: total number of unclustered hits
-    // (less unclustered hits -> better)
-    unsigned int no_unclustered_hit1 = solution1->get_num_of_unclustered_hit();
-    unsigned int no_unclustered_hit2 = solution2->get_num_of_unclustered_hit();
-    if( no_unclustered_hit1 != no_unclustered_hit2 ) 
-    {
-      return (no_unclustered_hit1 < no_unclustered_hit2);
-    }
-
-    // 4. criteria: total summed chi2 of the fits
-    // (lower total chi2 -> better)
-    double chi2_summed1 = solution1->get_total_summed_chi2();
-    double chi2_summed2 = solution2->get_total_summed_chi2();
-    return (chi2_summed1 < chi2_summed2);
-  
-  }
-  
-  // calculating overall reconstruction qualities
-  void Algos::evaluate_solutions()
-  {
-    auto & solutions = _event_->get_solutions();
-    for(auto & solution : solutions)
-    {
-      unsigned int no_trajectories = 0;
-      unsigned int no_segments = 0;
-      unsigned int no_unclustered_hit = 0;
-      double chi2_sum = 0.0;
-      
-      for(const auto & precluster_solution : solution->get_precluster_solutions())
-      {
-        const auto & trajectories = precluster_solution->get_trajectories();
-        no_trajectories += trajectories.size();
-        for(const auto & trajectory : trajectories)
-        {
-          no_segments += trajectory->get_segments().size();
-          chi2_sum += trajectory->get_chi_squared();
-        }
-        no_unclustered_hit += precluster_solution->get_unclustered_tracker_hits().size();
-      }
-      
-      solution->set_num_of_trajectories( no_trajectories );
-      solution->set_num_of_segments( no_segments );
-      solution->set_num_of_unclustered_hit( no_unclustered_hit );
-      solution->set_total_summed_chi2( chi2_sum );
-    }
-  }
-  
-  // deletes solutions with not fully connected trajectories
-  void Algos::remove_suboptimal_solutions()
-  {
-    auto & solutions = _event_->get_solutions();
-    if( solutions.size() < 2 ) return;
-    
-    // solutions are order based on the number of segments (more -> better)
-    unsigned int min_num_of_segments = solutions.front()->get_num_of_segments();
-    auto first_suboptimal_sol = std::find_if(solutions.begin()+1, solutions.end(),
-                        [min_num_of_segments](auto& sol){ 
-                          return (sol->get_num_of_segments() < min_num_of_segments);
-                        } );
-    solutions.erase(first_suboptimal_sol, solutions.end());
-    
-   
-    // solutions are order based on the number of trajectories (fewer the better)
-    unsigned int max_num_of_trajectories = solutions.front()->get_num_of_trajectories();
-    first_suboptimal_sol = std::find_if(solutions.begin()+1, solutions.end(),
-                    [max_num_of_trajectories](auto& sol){ 
-                      return (sol->get_num_of_trajectories() > max_num_of_trajectories);
-                    } );
-    solutions.erase(first_suboptimal_sol, solutions.end());
-    
-    // TODO: can be expanded to have more strict pruning
-  }
-  
-
-//____________________________________________________________________________
-//////////////////////////////////////////////////////////////////////////////
-//// Alpha clustering  //////////////////////////////////////////////////////////
+//// step 2: Alpha clustering  ///////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 
   // master function of alpha clustering 
@@ -2205,7 +1240,918 @@ namespace cimrman {
     DT_LOG_DEBUG(_config_.verbosity, "Delayed track estimate: phi = " << best_phi << " rad, r = " << best_r << " mm");
   
   }
+
+//____________________________________________________________________________
+//////////////////////////////////////////////////////////////////////////////
+//// step 3: MLM line fitting + ambiguity checking and solving ///////////////
+//////////////////////////////////////////////////////////////////////////////
+
+  // master function of step 3
+  void Algos::make_MLM_fits(PreclusterHdl precluster)
+  {
+    // fits every prompt cluster
+    for(auto & cluster : precluster->get_clusters())
+    { 
+      // LinearFit object is created with parameters (phi_estimate, r_estimate, 0.0, 0.0)
+      LinearFitHdl primary_fit = std::make_shared<LinearFit>(cluster);
+   		cluster->get_linear_fits().push_back(primary_fit);
+      
+      // check and detects the type of ambiguity of a cluster
+      detect_ambiguity_type(cluster);
+      
+      // creates mirror fit obejct in case of ambiguous clusters with its own likelihood support structure
+      create_mirror_fit(cluster);
+      
+      // for both fits (in case of ambiguity) finds ML estimate for (phi, r, theta, h)       
+      for(auto & fit : cluster->get_linear_fits()) 
+      {
+        make_ML_estimate(fit);
+        //TODO: chi2 limiter could be implemented here to not propagate bad fits further
+        // ,but would require a dedicated function for calculation (fits dont have chi2 yet here) 
+      }
+    }
+    return;
+  }
   
+  void Algos::make_ML_estimate(LinearFitHdl fit)
+  {
+    // Newton's method for finding a root of a function applied on the derivative of likelihood to obtain optimal phi.
+    // Likelihood is 4D function but 3 variables are solved analytically as a function of phi. 
+    Likelihood & lik = fit->likelihood;
+    double phi_0 = fit->phi;
+    const double h = 0.000001; // has to be small but not too small - ideally roughly half the available decimal precision to maximize numerical stability and calculation precision
+    for(int i = 0; i < 3; ++i)
+    {
+      double derivative = lik.log_likelihood_derivative(phi_0);
+      phi_0 += -h * derivative / (lik.log_likelihood_derivative(phi_0 + h) - derivative);
+    }
+    const double sin_phi0 = std::sin(phi_0);
+    const double cos_phi0 = std::cos(phi_0);
+    const double tan_phi0 = std::tan(phi_0);
+
+    double r_0 = (lik.Rr + lik.Rx * sin_phi0 - lik.Ry * cos_phi0) / lik.R;
+    
+    fit->phi = phi_0;
+    fit->r = r_0;
+    
+    fit->a = tan_phi0;
+    fit->b = -r_0 / cos_phi0;
+    
+    // calculating chi squared
+    double min_likelihood = -lik.log_likelihood_value(phi_0);
+    double no_of_measurements = lik.no_R + lik.no_Z;
+    double chi_squared = min_likelihood / no_of_measurements;
+    fit->chi_squared = chi_squared;
+   
+    // if at least 2 tracker hits have usable Z position, 3D ML fit is calculated
+    if( lik.no_Z > 1 )
+    {
+    
+      double denominator = (lik.Cov_Zyy * sin_phi0 * sin_phi0) 
+                          + (2.0 * lik.Cov_Zxy * sin_phi0 * cos_phi0) 
+                          + (lik.Cov_Zxx * cos_phi0 * cos_phi0);
+      
+      if( denominator != 0.0 )
+      {
+        double tan_theta = (lik.Cov_Zzy * sin_phi0 + lik.Cov_Zzx * cos_phi0) / denominator;
+        double h_temp = (lik.Zz / lik.Z) - (lik.Zx * cos_phi0 + lik.Zy * sin_phi0) * tan_theta / lik.Z;
+        
+        fit->h = h_temp;
+        fit->theta = std::atan(tan_theta);
+
+        fit->c = tan_theta / cos_phi0;
+        fit->d = h_temp - (r_0 * tan_phi0 * tan_theta);
+      }
+    }
+    
+    // in case of only 1 tracker hit Z position the fit goes horizontally at the height of the one tracker hit
+    else if( lik.no_Z == 1 ) 
+    {
+      
+      fit->h = lik.Zz / lik.Z;
+      fit->theta = 0.0;
+      
+      fit->c = 0.0;
+      fit->d = lik.Zz / lik.Z;
+    } 
+    
+    DT_LOG_DEBUG(_config_.verbosity, "Linear fit created: (" << fit->phi << " rad, " 
+                                                             << fit->r << " mm, " 
+                                                             << fit->theta << " rad, "
+                                                             << fit->h << " mm)" );
+    DT_THROW_IF(lik.no_Z == 0, std::logic_error, "No Z infromation available for fitting!");
+    
+    return;
+  }
+  
+  void Algos::detect_ambiguity_type(ClusterHdl cluster)
+  {
+    const std::vector<TrackerHitHdl> hits = cluster->get_tracker_hits();
+    
+    // detecting ambiguity type
+    const double x0 = hits.front()->get_x();
+    const double y0 = hits.front()->get_y();
+    bool ambiguous;
+    
+    // type 1 == mirror image along line x = x0 
+    ambiguous = true;
+    for(auto i = 1u; i < hits.size(); ++i)
+    {	
+      if( x0 != hits[i]->get_x() )
+      {
+        ambiguous = false;
+        break;
+      }
+    }
+    if( ambiguous == true )
+    {
+      cluster->set_ambiguity_type( Ambiguity::Vertical );
+      DT_LOG_DEBUG(_config_.verbosity, "Cluster ambiguity: Vertical");
+      return;
+    }
+    
+    // type 2 == mirror image along line y = y0 
+    ambiguous = true;
+    for(auto i = 1u; i < hits.size(); ++i)
+    {	
+      if( y0 != hits[i]->get_y() )
+      {
+        ambiguous = false;
+        break;
+      }
+    }
+    if( ambiguous == true )
+    {
+      cluster->set_ambiguity_type( Ambiguity::Horizontal );
+      DT_LOG_DEBUG(_config_.verbosity, "Cluster ambiguity: Horizontal");
+    	return;
+    }
+    
+    // type 3 == mirror image along line y = x + (y0-x0) 
+    ambiguous = true;
+    for(auto i = 1u; i < hits.size(); ++i)
+    {	
+      if( y0 - hits[i]->get_y() != x0 - hits[i]->get_x() )
+      {
+        ambiguous = false;
+        break;
+      }
+    }
+    if( ambiguous == true )
+    {
+      cluster->set_ambiguity_type( Ambiguity::AntiDiagonal );
+      DT_LOG_DEBUG(_config_.verbosity, "Cluster ambiguity: Anti-diagonal");
+      return;
+    }
+    
+    // type 4 == mirror image along line y = -x + (y0-x0) 
+    ambiguous = true;
+    for(auto i = 1u; i < hits.size(); ++i)
+    {	
+      if( y0 - hits[i]->get_y() != hits[i]->get_x() - x0 )
+      {
+        ambiguous = false;
+       break;
+      }
+    }
+    if( ambiguous == true )
+    {
+      cluster->set_ambiguity_type( Ambiguity::MainDiagonal );
+      DT_LOG_DEBUG(_config_.verbosity, "Cluster ambiguity: Main-diagonal");
+    	return;
+    }
+
+    cluster->set_ambiguity_type( Ambiguity::None );
+    DT_LOG_DEBUG(_config_.verbosity, "Cluster ambiguity: None");
+    return;
+  }
+  
+  void Algos::create_mirror_fit(ClusterHdl cluster)
+  {  
+    if( cluster->get_ambiguity_type() == Ambiguity::None )
+    {
+      return;
+    }
+    if( cluster->get_linear_fits().size() != 1 ) 
+    {
+      return;
+    }
+    
+    ConstLinearFitHdl fit = cluster->get_linear_fits().front();
+    const std::vector<TrackerHitHdl> hits = cluster->get_tracker_hits();
+    double x0 = hits.front()->get_x();
+    double y0 = hits.front()->get_y();
+    
+    // new copied LinearFit object 
+    LinearFitHdl mirror_fit = std::make_shared<LinearFit>(fit); 
+    cluster->get_linear_fits().push_back(mirror_fit);
+    
+    double a0 = fit->a;
+    double b0 = fit->b;
+    double mirror_a, mirror_b;
+    
+    switch(cluster->get_ambiguity_type())
+    {
+    case Ambiguity::Vertical:
+      mirror_a = -a0;
+      mirror_b = 2.0 * a0 * x0 + b0;
+      break;
+    case Ambiguity::Horizontal:
+      mirror_a = -a0;
+      mirror_b = 2.0 * y0 - b0;
+      break;
+    case Ambiguity::AntiDiagonal:
+      mirror_a = 1.0 / a0;
+      mirror_b = y0 - x0 - (b0 / a0) + (y0 - x0) / a0;
+      break;
+    case Ambiguity::MainDiagonal:
+      mirror_a = 1.0 / a0;
+      mirror_b = y0 + x0 + (b0 / a0) - (y0 + x0) / a0;
+      break;
+    }  
+    
+    double mirror_phi = std::atan(mirror_a);
+    double mirror_r = -mirror_b / std::sqrt(mirror_a * mirror_a + 1.0);
+	  
+    mirror_fit->a = mirror_a;
+    mirror_fit->b = mirror_b;
+    mirror_fit->phi = mirror_phi;
+    mirror_fit->r = mirror_r;
+    
+    cluster->set_phi_estimate( mirror_phi );
+    cluster->set_r_estimate( mirror_r );
+    
+    // with the exception of type 1, mirrot fits correspond to the opposite halves of tracker hits
+    // this changes the sign of the sums in the likelihood that contain drift radii
+    if( cluster->get_ambiguity_type() != Ambiguity::Vertical )
+    {  
+      mirror_fit->likelihood.Rr *= -1.0;
+      mirror_fit->likelihood.Rrx *= -1.0;
+      mirror_fit->likelihood.Rry *= -1.0;
+      mirror_fit->likelihood.Cov_Rrx *= -1.0;
+      mirror_fit->likelihood.Cov_Rry *= -1.0;
+    }
+    
+    return;
+  }
+  
+//____________________________________________________________________________
+//////////////////////////////////////////////////////////////////////////////
+//// step 4: Linear fits are associated to tracker hits //////////////////////
+////         and combined into a precluster solutions   //////////////////////
+//////////////////////////////////////////////////////////////////////////////
+  
+  // master function of step 4
+  void Algos::combine_into_precluster_solutions(PreclusterHdl precluster)
+  {
+    // counting the number (N) of ambiguous clusters 
+    int no_ambiguities = 0;
+    for(auto & cluster : precluster->get_clusters())
+    {
+      if( cluster->get_ambiguity_type() != Ambiguity::None )
+      {
+        no_ambiguities++;
+      }
+    }
+    // TODO : limit the number of ambiguities? What is too much?
+    // 2^N precluster solutions should exist (each combination of ambiguities)
+    int no_precluster_solutions = 1 << no_ambiguities;
+    std::vector<PreclusterSolutionHdl> & precluster_solutions = precluster->get_precluster_solutions();
+    precluster_solutions.reserve( no_precluster_solutions );
+    // creating empty solutions
+    for(int i = 0; i < no_precluster_solutions; i++)
+    { 
+      PreclusterSolutionHdl precluster_solution = std::make_shared<PreclusterSolution>();
+      precluster_solutions.push_back(precluster_solution);
+      precluster_solution->get_unclustered_tracker_hits() = precluster->get_unclustered_const_tracker_hits();
+    }
+    
+    // filling the precluster solutions with different track combinations
+    int N1 = 1;
+    for(const auto & cluster : precluster->get_clusters())
+    {
+      // for each unambiguous cluster its single track is added to all solutions
+      if(cluster->get_linear_fits().size() == 1u)
+      {
+        for(auto & precluster_solution : precluster_solutions)
+        {  
+          const auto hits = cluster->get_const_tracker_hits();
+          TrackHdl track = std::make_shared<Track>(cluster->get_linear_fits().front(), hits);
+          track->sort_associations();
+          precluster_solution->add_track(track);
+        }
+      }
+      
+      // for each ambiguous cluster its two tracks are added to different halves of solutions
+      // example scheme for 3 ambiguities
+      //  [0,0,0,0,1,1,1,1]
+      //  [0,0,1,1,0,0,1,1]
+      //  [0,1,0,1,0,1,0,1]
+      else if(cluster->get_linear_fits().size() == 2u)
+      {
+        int k = 0;
+        for(int i = 0; i < N1; ++i)
+        {
+          int N2 = no_precluster_solutions / (N1 * 2);
+          for(int j = 0; j < N2; ++j)
+          {  
+            const auto hits = cluster->get_const_tracker_hits();
+            TrackHdl track = std::make_shared<Track>(cluster->get_linear_fits()[0], hits);
+            track->sort_associations();
+            precluster_solutions[k]->add_track(track);
+            ++k;
+          }
+          for(int j = 0; j < N2; ++j)
+          {  
+            const auto hits = cluster->get_const_tracker_hits();
+            TrackHdl track = std::make_shared<Track>(cluster->get_linear_fits()[1], hits);
+            track->sort_associations();
+            precluster_solutions[k]->add_track(track);
+            ++k;
+          }
+        }
+        N1 *= 2;
+      }
+    }
+    return;
+  }
+  
+  
+//____________________________________________________________________________
+//////////////////////////////////////////////////////////////////////////////
+//// step 5: Line trajectories ///////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+  
+     
+  // master function of step 5:
+  // every track is processed into a line trajectory (the endpoints are identified)  
+  void Algos::create_line_trajectories(PreclusterSolutionHdl precluster_solution)
+  {      
+    std::vector<TrackHdl> & untrajectorized_tracks = precluster_solution->get_unprocessed_tracks();
+    std::vector<TrajectoryHdl> & trajectories = precluster_solution->get_trajectories();
+    for(auto & trajectory_candidate : untrajectorized_tracks)
+    {
+      // new Trajectory object for each found trajectory candidate
+      TrajectoryHdl trajectory = std::make_shared<Trajectory>(trajectory_candidate);
+      trajectories.push_back(trajectory);
+      create_line_trajectory_endpoints(trajectory);  
+    }       
+  }
+  
+  // for a simple trajectory without kinks only the endpoint are created    
+  void Algos::create_line_trajectory_endpoints(TrajectoryHdl trajectory)
+  {
+    DT_THROW_IF(trajectory->get_segments().size() != 1, std::logic_error, "No line trajectory for creating trajectory points");
+
+    TrackHdl track = trajectory->get_segments().front();
+    std::vector<PointHdl> & trajectory_points = trajectory->get_trajectory_points();
+        
+    ConstPointHdl point1 = track->get_associations().front().point;
+    ConstPointHdl point2 = track->get_associations().back().point;
+    
+    trajectory_points.push_back(std::make_shared<Point>(point1));
+    trajectory_points.push_back(std::make_shared<Point>(point2));
+  }
+  
+  //____________________________________________________________________________
+  //////////////////////////////////////////////////////////////////////////////
+  //// step 6: Polyline building ///////////////////////////////////////////////
+  //////////////////////////////////////////////////////////////////////////////
+  
+  // step 6 (merging lines into polylines)
+  void Algos::build_polylines(PreclusterSolutionHdl precluster_solution)
+  {  
+    // the connection process it outsourced to a dedicated TrajectoryBuilder worker class
+    TrajectoryBuilder builder(precluster_solution, _config_.polylines, _geom_ );
+    builder.add_connection_strategy(KinkFinder::ConnectionStrategy::VERTICAL_ALIGNMENT);
+    builder.add_connection_strategy(KinkFinder::ConnectionStrategy::ENDPOINTS_MIDDLE);
+    builder.process();
+  }
+  
+  // step 6 (polyline refinement)
+  void Algos::refine_polylines(PreclusterSolutionHdl precluster_solution)
+  {  
+    // refining caused problems
+    for(auto & trajectory : precluster_solution->get_trajectories())
+    {
+      // unnecessary if no kink has been found
+      if( trajectory->has_kink() )
+      {
+        // connection into polyline can make some hits associated beyond the kink point (out of bound association)
+        remove_out_of_bound_associations(precluster_solution, trajectory);
+        
+         // created connection changes the association points -> needs to be updated
+        trajectory->update_segments();
+      }
+    }
+  }
+  
+  
+  // checks whether all tracker hits are associated to correct segment inside a polyline trajectory
+  // if not - associates it to the correct segment or removes it from the trajectory
+  void Algos::remove_out_of_bound_associations(PreclusterSolutionHdl precluster_solution, TrajectoryHdl trajectory)
+  {
+    // tolerance mainly for comparing two doubles 
+    const double numerical_tolerance = 0.01;
+    
+    std::vector<TrackHdl> & segments = trajectory->get_segments();
+    std::vector<PointHdl> & traj_points = trajectory->get_trajectory_points();
+    std::vector<ConstTrackerHitHdl> & unclustered_tracker_hits = precluster_solution->get_unclustered_tracker_hits();
+    
+    for(auto i = 0u; i < segments.size(); ++i)
+    {
+      ConstPointHdl start = traj_points[i];
+      ConstPointHdl end   = traj_points[i+1];
+      double t_start = segments[i]->calculate_t(start);
+      double t_end = segments[i]->calculate_t(end);
+      if(t_start > t_end)
+      {      
+        std::swap(t_start, t_end);
+      }
+     
+      std::vector<Association> & associations = segments[i]->get_associations(); 
+      auto j = 0u;
+      while(j < associations.size())
+      {
+        ConstTrackerHitHdl hit = associations[j].tracker_hit;
+        
+        double t_j = associations[j].parameter_t;
+        // checking if the point is in bounds of its segments (correct association)
+        if( (t_start <= t_j + numerical_tolerance) && (t_j - numerical_tolerance <= t_end) ) 
+        {
+          ++j;
+          continue;
+        }
+        // erasing the hit association point from the trajectory
+        associations.erase(associations.begin() + j);
+        
+        // marking the hit as unclustered
+        unclustered_tracker_hits.push_back(hit);
+      }
+    }
+    return;
+  }   
+  
+  // goes through unclustered tracker hits of a precluster solution and checks
+  // if it can be associated to some segment of some trajectory
+  void Algos::refine_clustering(PreclusterSolutionHdl precluster_solution)
+  {
+    const double distance_threshold = _config_.clustering.hit_association_distance;
+    const double max_extention_distance = _config_.polylines.max_extention_distance;
+    
+    auto & unclustered_tracker_hits = precluster_solution->get_unclustered_tracker_hits();
+    auto & trajectories = precluster_solution->get_trajectories();
+    
+    if(unclustered_tracker_hits.size() == 0 || trajectories.size() == 0) return; 
+    
+    // computing parametric bounds of segments of trajectories
+    std::vector<std::vector<double>> t_starts;
+    std::vector<std::vector<double>> t_ends;
+    t_starts.reserve(trajectories.size());
+    t_ends.reserve(trajectories.size());
+    for(auto & trajectory : trajectories)
+    {
+      auto & traj_points = trajectory->get_trajectory_points(); 
+      auto & segments = trajectory->get_segments();
+      std::vector<double> trajectory_starts;
+      std::vector<double> trajectory_ends;
+      trajectory_starts.reserve(segments.size());
+      trajectory_ends.reserve(segments.size());
+
+      for(auto i = 0u; i < segments.size(); ++i)
+      {
+        ConstPointHdl start = traj_points[i];
+        ConstPointHdl end = traj_points[i+1];
+        
+        double t_start = segments[i]->calculate_t(start);
+        double t_end = segments[i]->calculate_t(end);
+        trajectory_starts.push_back(t_start);
+        trajectory_ends.push_back(t_end);
+      }
+      t_starts.push_back(trajectory_starts);
+      t_ends.push_back(trajectory_ends);
+    }
+    
+    // looking for good associations
+    auto i = 0u;
+    while(i < unclustered_tracker_hits.size())
+    {
+      ConstTrackerHitHdl hit = unclustered_tracker_hits[i];
+      const double hit_x = hit->get_x();
+      const double hit_y = hit->get_y();
+      const double hit_R = hit->get_R();
+      bool clustered = false;
+      for(auto j = 0u; j < trajectories.size(); ++j)
+      {
+        if( clustered ) break;
+        
+        auto & segments = trajectories[j]->get_segments();
+        auto & traj_points = trajectories[j]->get_trajectory_points(); 
+        for(auto k = 0u; k < segments.size(); ++k)
+        {
+          const double cos_phi = std::cos(segments[k]->get_phi());
+          const double sin_phi = std::sin(segments[k]->get_phi());
+          
+      // 1. checking if the hit is close to the line (segment without bounds)
+          //TODO possible to add vertical distance as well
+          double distance = std::abs(segments[k]->get_r() - hit_x * sin_phi + hit_y * cos_phi) - hit_R;
+          if( std::abs(distance) > distance_threshold )
+          { 
+                continue;
+          }
+                  
+     // 2. checking if the hit is within bounds of the segment
+          bool association_found = false;
+          const double t = hit_x * cos_phi + hit_y * sin_phi;          
+          const double t_start = t_starts[j][k];
+          const double t_end = t_ends[j][k];
+          
+          auto position = 0u;
+          std::vector<Association> & associations_k = segments[k]->get_associations();
+
+          // hit might not be within the current segment ends, but might align well if we prolong the segment a little 
+          // only the first and last segment can be prolonged! cases (k == 0) or (k == segments.size() - 1)
+          bool trajectory_extention_needed = false;
+          // new end_point in case of extention
+          PointHdl end_point;             
+       
+        // A) tracker hit is in the middle of existing segment (no extentions)
+          if(std::min(t_start, t_end) <= t &&
+             std::max(t_start, t_end) >= t)
+          {
+            association_found = true;
+            
+            // finding where the hit belongs on the line (tracker_hits and tracker_hit_points are sorted vectors)
+            while(position < associations_k.size())
+            {
+              if(t < associations_k[position].parameter_t)
+              {
+                break;
+              }
+              else
+              {
+                position++;           
+              }
+            }        
+          }
+          
+        // B) tracker hit can be added by extending the first segment 
+          else if( k == 0 )
+          {
+            // checking if the potential extention is in the right direction 
+            if( (t_end > t_start && t < t_start) ||
+                (t_end < t_start && t >= t_start) )
+            {
+              const double distance = std::abs(t - t_start);
+              if(distance < max_extention_distance)
+              {
+                association_found = true;
+                trajectory_extention_needed = true;
+                position = 0;
+                end_point = traj_points.front();
+              }
+            }
+          }
+          
+        // C) tracker hit can be added by extending the last segment 
+          else if( k == segments.size() - 1 )
+          {
+            // checking if the potential extention is in the right direction
+            if( (t_end > t_start && t >= t_end) ||
+                (t_end < t_start && t <= t_end) )
+            {
+              const double distance = std::abs(t - t_end);
+              if(distance < max_extention_distance)
+              {
+                association_found = true;
+                trajectory_extention_needed = true;
+                position = associations_k.size();
+                end_point = traj_points.back();
+              }
+            }
+          } 
+          
+          
+      // 3. if good option found, the tracker hit is associated
+          if( association_found )
+          {
+            Association new_association(hit);
+            new_association.parameter_t = t;
+            
+            // creating new association point and storing at the right place
+            double x = t * cos_phi + segments[k]->get_r() * sin_phi;
+            double y = t * sin_phi - segments[k]->get_r() * cos_phi;
+            double z = t * std::tan(segments[k]->get_theta()) + segments[k]->get_h();
+            new_association.point = std::make_shared<Point>(x, y, z); 
+            associations_k.insert(associations_k.begin() + position, new_association);
+            
+            if(trajectory_extention_needed)
+            {
+              end_point->x = x;
+              end_point->y = y;
+              end_point->z = z;
+            }
+
+            unclustered_tracker_hits.erase(unclustered_tracker_hits.begin() + i);
+            clustered = true;
+            break;
+          }
+        }
+      }
+      if(not clustered)
+      {
+        i++;
+      }
+    }
+    
+    return;
+  }
+  
+//____________________________________________________________________________
+//////////////////////////////////////////////////////////////////////////////
+//// step 7: Trajectory evaluation ///////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+    
+  // master function of step 7
+  //  - fit quality calculation
+  void Algos::evaluate_trajectories(PreclusterSolutionHdl precluster_solution)
+  { 
+    // calculating all fit quality metrics
+    for(auto & trajectory : precluster_solution->get_trajectories())
+    {
+      evaluate_trajectory(trajectory);
+    }
+  }
+  
+  // calculates mean square errors and chi squares of trajectories
+  void Algos::evaluate_trajectory(TrajectoryHdl trajectory)
+  {   
+    double chi_squared = 0.0;
+    double chi_squared_R = 0.0;
+    double chi_squared_Z = 0.0;
+    
+    double MSE = 0.0;
+    double MSE_R = 0.0;
+    double MSE_Z = 0.0;
+  
+    // number of measurements of R and Z used in the fit
+    int no_R = 0;
+    int no_Z = 0;
+    
+    // degrees of freedom
+    int DOF_R = 0;
+    int DOF_Z = 1;
+    
+    for(auto & segment : trajectory->get_segments())
+    {
+      segment->evaluate();
+      
+      const auto & associations = segment->get_associations();
+      int no_R_seg = std::count_if(associations.begin(),
+                           associations.end(),
+                           [](const Association & association){
+                             return association.tracker_hit->has_valid_R();
+                           });
+      no_R += no_R_seg;   
+      int no_Z_seg = std::count_if(associations.begin(),
+                           associations.end(),
+                           [](const Association & association){
+                             return association.tracker_hit->has_valid_Z();
+                           });  
+      no_Z += no_Z_seg;
+      
+      MSE_R += segment->get_square_error_R();
+      MSE_Z += segment->get_square_error_Z();  
+                    
+      chi_squared_R += segment->get_chi_squared_R();
+      chi_squared_Z += segment->get_chi_squared_Z();
+      
+      DOF_R += 2;
+      DOF_Z += 1;
+    }
+    MSE = (MSE_R + MSE_Z);
+    chi_squared = (chi_squared_R + chi_squared_Z);
+    
+    // mean square error is the sum of square errors of all segments divided by the number of measurements
+    MSE_R = MSE_R / double(no_R);
+    if(no_Z == 0)
+    {
+    	MSE_Z = datatools::invalid_real();
+    }
+    else
+    {
+      MSE_Z = MSE_Z / double(no_Z);
+    }
+    MSE = MSE / double(no_R + no_Z);
+    
+    // chi_squared is the sum of chi_squares of all segments divided by (number_of_measurements - DOF)
+    if(no_R - DOF_R > 0)
+    {
+      chi_squared_R = chi_squared_R / double(no_R - DOF_R);    
+    }
+    else
+    {
+      chi_squared_R = datatools::invalid_real();
+    }
+    
+    if(no_Z - DOF_Z > 0)
+    {
+      chi_squared_Z = chi_squared_Z / double(no_Z - DOF_Z);
+    }
+    else
+    {
+      chi_squared_Z = datatools::invalid_real();
+    }
+    
+    if(no_R + no_Z - DOF_R - DOF_Z > 0)
+    {
+      chi_squared = chi_squared / double(no_R + no_Z - DOF_R - DOF_Z);    
+    }
+    else
+    {
+      chi_squared_Z = datatools::invalid_real();
+    }
+
+    trajectory->set_MSE( MSE );
+    trajectory->set_MSE_R( MSE_R );
+    trajectory->set_MSE_Z( MSE_Z );
+    
+    trajectory->set_chi_squared( chi_squared );
+    trajectory->set_chi_squared_R( chi_squared_R );
+    trajectory->set_chi_squared_Z( chi_squared_Z );
+    return;
+  } 
+    
+
+//____________________________________________________________________________
+//////////////////////////////////////////////////////////////////////////////
+//// step 8: Combining precluster solutions into all solutions ///////////////
+//////////////////////////////////////////////////////////////////////////////
+  
+  // master function of step 8
+  void Algos::create_solutions()
+  {
+    // creating all unique combinations of all precluster solutions
+    combine_precluster_solutions_into_solutions();
+    
+    // calculates some quality indicators of the solutions
+    evaluate_solutions();
+        
+    // putting better solutions at the front (custom compare function) 
+    auto & solutions = _event_->get_solutions();
+    std::sort(solutions.begin(), solutions.end(), compare_solutions); 
+    
+    // removing suboptimal solutions from the collection
+    if( _config_.keep_only_best_solutions )
+    {
+      remove_suboptimal_solutions();
+    }
+  }
+  
+  void Algos::combine_precluster_solutions_into_solutions()
+  {
+    // caluclating needed number of solutions
+    int no_solutions = 1;
+    for(auto & precluster : _event_->get_preclusters())
+    {
+      int size_of_precluster = precluster->get_precluster_solutions().size(); 
+      if( size_of_precluster != 0 )
+      {
+        no_solutions *= size_of_precluster;
+      }
+    }
+    if(no_solutions == 0) return;
+    // TODO: limit the number of solutions?
+    
+    std::vector<SolutionHdl> & solutions = _event_->get_solutions();
+    solutions.reserve( no_solutions );
+    solutions.push_back( std::make_shared<Solution>() );
+    
+    // constructing each solution as a unique combination of precluster solutions
+    // each solution points to exactly one precluster solution of each cluster
+    for(auto & precluster : _event_->get_preclusters())
+    {
+      std::vector<PreclusterSolutionHdl> & precluster_solutions = precluster->get_precluster_solutions(); 
+      
+      int no_copied_solution = solutions.size();
+      for(auto i = 1u; i < precluster_solutions.size(); i++)
+      {
+        for(int j = 0; j < no_copied_solution; j++)
+        {
+          solutions.push_back(std::make_shared<Solution>( solutions[j]->get_precluster_solutions() ));
+        }
+      }
+      
+      for(auto i = 0u; i < precluster_solutions.size(); i++)
+      {
+        for(int j = 0; j < no_copied_solution; j++)
+        {
+          auto & prec_sol = solutions[i * no_copied_solution + j]->get_precluster_solutions();
+          prec_sol.push_back( precluster_solutions[i] );
+        }
+      }
+    }
+  }
+  
+  bool Algos::compare_solutions(const SolutionHdl solution1, const SolutionHdl solution2)
+  {
+    // 1. criteria: total number of identified linear segments
+    // (more succesull fits -> better)
+    unsigned int no_segments1 = solution1->get_num_of_segments();
+    unsigned int no_segments2 = solution2->get_num_of_segments();
+    if( no_segments1 != no_segments2 )
+    {
+      return (no_segments1 > no_segments2);
+    }
+    
+    // 2. criteria: total number of trajectories 
+    // (less trajectories -> more connected -> better)
+    unsigned int no_trajectories1 = solution1->get_num_of_trajectories();
+    unsigned int no_trajectories2 = solution2->get_num_of_trajectories();
+    if( no_trajectories1 != no_trajectories2 )
+    {
+      return (no_trajectories1 < no_trajectories2);
+    }
+    
+    // 3. criteria: total number of unclustered hits
+    // (less unclustered hits -> better)
+    unsigned int no_unclustered_hit1 = solution1->get_num_of_unclustered_hit();
+    unsigned int no_unclustered_hit2 = solution2->get_num_of_unclustered_hit();
+    if( no_unclustered_hit1 != no_unclustered_hit2 ) 
+    {
+      return (no_unclustered_hit1 < no_unclustered_hit2);
+    }
+
+    // 4. criteria: total summed chi2 of the fits
+    // (lower total chi2 -> better)
+    double chi2_summed1 = solution1->get_total_summed_chi2();
+    double chi2_summed2 = solution2->get_total_summed_chi2();
+    return (chi2_summed1 < chi2_summed2);
+  
+  }
+  
+  // calculating overall reconstruction qualities
+  void Algos::evaluate_solutions()
+  {
+    auto & solutions = _event_->get_solutions();
+    for(auto & solution : solutions)
+    {
+      unsigned int no_trajectories = 0;
+      unsigned int no_segments = 0;
+      unsigned int no_unclustered_hit = 0;
+      double chi2_sum = 0.0;
+      
+      for(const auto & precluster_solution : solution->get_precluster_solutions())
+      {
+        const auto & trajectories = precluster_solution->get_trajectories();
+        no_trajectories += trajectories.size();
+        for(const auto & trajectory : trajectories)
+        {
+          no_segments += trajectory->get_segments().size();
+          chi2_sum += trajectory->get_chi_squared();
+        }
+        no_unclustered_hit += precluster_solution->get_unclustered_tracker_hits().size();
+      }
+      
+      solution->set_num_of_trajectories( no_trajectories );
+      solution->set_num_of_segments( no_segments );
+      solution->set_num_of_unclustered_hit( no_unclustered_hit );
+      solution->set_total_summed_chi2( chi2_sum );
+    }
+  }
+  
+  // deletes solutions with not fully connected trajectories
+  void Algos::remove_suboptimal_solutions()
+  {
+    auto & solutions = _event_->get_solutions();
+    if( solutions.size() < 2 ) return;
+    
+    // solutions are order based on the number of segments (more -> better)
+    unsigned int min_num_of_segments = solutions.front()->get_num_of_segments();
+    auto first_suboptimal_sol = std::find_if(solutions.begin()+1, solutions.end(),
+                        [min_num_of_segments](auto& sol){ 
+                          return (sol->get_num_of_segments() < min_num_of_segments);
+                        } );
+    solutions.erase(first_suboptimal_sol, solutions.end());
+    
+   
+    // solutions are order based on the number of trajectories (fewer the better)
+    unsigned int max_num_of_trajectories = solutions.front()->get_num_of_trajectories();
+    first_suboptimal_sol = std::find_if(solutions.begin()+1, solutions.end(),
+                    [max_num_of_trajectories](auto& sol){ 
+                      return (sol->get_num_of_trajectories() > max_num_of_trajectories);
+                    } );
+    solutions.erase(first_suboptimal_sol, solutions.end());
+    
+    // TODO: can be expanded to have more strict pruning
+  }
+  
+
+
+  //____________________________________________________________________________
+  //////////////////////////////////////////////////////////////////////////////
+  //// Experimental section  ///////////////////////////////////////////////////
+  //////////////////////////////////////////////////////////////////////////////
   
   
   // different track estimation approach - more analytical (and experimental currently) - tries all 8 combinations and chooses
@@ -2261,622 +2207,6 @@ namespace cimrman {
     
     return output_estimates;
   }
-  
-  
-  
-  
-  //__________________________
-  // discarded trash section
-  /*
-   
-  // master function of step 5 (polyline track mode): Track -> kinked Trajectories
-  void Algos::create_polyline_trajectories(PreclusterHdl precluster)
-  {
-    if(precluster->is_delayed()) return;
-    
-    // processed separately for each precluster solution
-    for(auto & precluster_solution : precluster->get_precluster_solutions())
-    {
-      std::vector<TrackHdl> unprocessed_tracks = precluster_solution->get_unprocessed_tracks(); 
-      std::vector<std::vector<TrackHdl>> trajectory_candidates = find_polyline_candidates(unprocessed_tracks,
-      																																				  precluster->get_side());
-      for(auto & trajectory_candidate : trajectory_candidates)
-      {
-        // new Trajectory object for each found trajectory candidate
-        TrajectoryHdl trajectory = std::make_shared<Trajectory>(trajectory_candidate);
-        precluster_solution->get_trajectories().push_back(trajectory);
-        
-        // creating trajectory points
-        if(trajectory->has_kink())
-        {
-          build_polyline_trajectory(precluster_solution, trajectory);
-        }
-        // line trajectories are more simple
-        else
-        {
-          create_line_trajectory_points(trajectory);  
-        }
-        
-        // remove trajectorized tracks from untrajectorized tracks (removing duplicates)       
-        auto it = unprocessed_tracks.begin();
-        while(it != unprocessed_tracks.end())
-        {
-          bool erased = false;   
-          for(auto & track2 : trajectory_candidate)
-          {
-            if(*it == track2)
-            {
-              it = unprocessed_tracks.erase(it);
-              erased = true;
-              break;
-            }
-          }
-          if(not erased)
-          {
-            ++it;
-          }
-        }
-      }       
-    }
-    return;
-  }
-  
-  std::vector<std::vector<TrackHdl>> Algos::find_polyline_candidates(std::vector<TrackHdl> & tracks, const int side) const
-  {
-    const double vertical_threshold           = _config_.polylines.max_vertical_distance;
-    const double max_distance                 = _config_.polylines.max_tracker_hits_distance;
-    const double min_distance_from_foil       = _config_.polylines.min_distance_from_foil;
-    const double min_distance_from_main_walls = _config_.polylines.min_distance_from_main_walls;
-    const double min_distance_from_X_walls    = _config_.polylines.min_distance_from_X_walls;
-  
-    std::vector<std::vector<TrackHdl>> trajectory_candidates;
-    int no_tracks = (int)tracks.size();
-    if(no_tracks == 0)
-    {
-      return trajectory_candidates;
-    }
-    if(no_tracks == 1)
-    {
-       trajectory_candidates.push_back( std::vector<TrackHdl>(1, tracks.front()) );
-       return trajectory_candidates;
-    }
-		
-    // array stores the kink candidates - stores "true" for pairs (i, j)
-    // of linear tracks that are candidates for connection into kinked trajectory  
-    typedef boost::multi_array<bool, 2> array_type;
-    typedef array_type::index index;
-    array_type connections(boost::extents[no_tracks][no_tracks]);
-    // Assign values to the elements:
-    for(index ia = 0; ia != no_tracks; ++ia) 
-      for(index ja = 0; ja != no_tracks; ++ja)
-      {
-        connections[ia][ja] = false;
-      }
-    
-    // geo locators to access geometry information
-    const snemo::geometry::gg_locator & ggLocator = _geom_.geo_loc->geigerLocator();    
-    
-    const snemo::geometry::calo_locator & caloLocator = _geom_.geo_loc->caloLocator();
-    const double mainwall_x_cord = caloLocator.getXCoordOfWall(1);
-    
-    const snemo::geometry::xcalo_locator & xcaloLocator = _geom_.geo_loc->xcaloLocator();
-    const double X_wall_y_cord = xcaloLocator.getYCoordOfWall(1, 1);
-    
-    // x coordinate of the outside border of tracker (side 1) 
-    double tracker_x_max = ggLocator.getXCoordOfLayer(1, 8) + _geom_.tc_radius;
-    tracker_x_max = std::min( tracker_x_max, mainwall_x_cord - min_distance_from_main_walls );
-    
-    // x coordinate of the inside border (source foil gap) of tracker (side 1)
-    double tracker_x_min = ggLocator.getXCoordOfLayer(1, 0) - _geom_.tc_radius;
-    tracker_x_min = std::max( min_distance_from_foil, tracker_x_min );
-
-    // y coordinate of the border of tracker (side 1)
-    double tracker_y_max = ggLocator.getYCoordOfRow(1, 112) + _geom_.tc_radius;
-    tracker_y_max = std::min( tracker_y_max, X_wall_y_cord - min_distance_from_X_walls );
-    
-    // connection candidate (each pair (i, j) of tracks) are filtered based on several criteria 
-    for(int i = 0; i < no_tracks; ++i)
-    {
-      TrackHdl track1 = tracks[i];
-      for(int j = i+1; j < no_tracks; ++j)
-      {
-        TrackHdl track2 = tracks[j];
-
-        // for each pair of tracks calculate the (x,y) coordinates of the tracks intersection in 2D (kink point candidates)
-        Point kink_point = Track::get_intersection_2D(track1, track2);
-        
-      // 1. kink position cuts
-        // (checking if the (x, y) intersection is outside of the given side of tracker)
-        if(kink_point.y < -tracker_y_max || tracker_y_max < kink_point.y) continue;
-        if(kink_point.x < -tracker_x_max || tracker_x_max < kink_point.x) continue;
-        if(side == 0 && kink_point.x > -tracker_x_min) continue;
-        if(side == 1 && kink_point.x < tracker_x_min) continue;		
-        
-      // 2. vertical distance cut         
-        // (calculating the vertical distance in the intersection point)		
-        double z1 = track1->get_c() * kink_point.x + track1->get_d();
-        double z2 = track2->get_c() * kink_point.x + track2->get_d();
-
-        // track_connection_vertical_threshold
-        if(std::abs(z2 - z1) > vertical_threshold) continue;			
-        
-        // z1 = 0 or z2 = 0 means one or both tracks have failed vertical reconstruction (missing timestamps,...) 
-        if(z1 == 0 || z2 == 0) continue;
-        
-      // 3. associated tracker hit cuts
-        // (connection is fake if no associated tracker hits are near the candidate kink point)
-        
-        PointHdl kink_point_hdl = std::make_shared<Point>(kink_point);
-        
-        // detecting close hit on track1
-        bool match1_found = false;
-        for(auto & association : track1->get_associations())
-        {
-          if( Point::distance_2D( kink_point_hdl, association.point) < max_distance )
-          {
-            match1_found = true;
-            break;
-          }
-        }     
-        if( not match1_found ) continue;
-        
-        // detecting close hit on track2
-        bool match2_found = false;
-        for(auto & association : track2->get_associations())
-        {
-          if( Point::distance_2D( kink_point_hdl, association.point) < max_distance )
-          {
-            match2_found = true;
-            break;
-          }
-        }  
-        if( not match2_found ) continue;
-        
-        connections[i][j] = true;
-        connections[j][i] = true;			
-      }
-    }
-    
-    // connection_counter stores the number of kink candidates for each linear track
-    std::vector<int> connection_counter(no_tracks, 0);
-    for(int i = 0; i < no_tracks; ++i)
-    {
-      connection_counter[i] = std::accumulate(connections[i].begin(), connections[i].end(), 0);
-    }
-    
-    
-    /// XXX this identifies cursed events that brake Cimrman.  
-    
-    bool has_kinks = false;
-    bool has_entry_point = false;
-    for(int i = 0; i < no_tracks; ++i)
-    {
-      if( connection_counter[i] > 0 ) has_kinks = true;
-      if( connection_counter[i] == 1 ) has_entry_point = true;
-    }
-    
-    if( !has_entry_point && has_kinks )
-    {
-      std::cout << "PROBLEM IN EVENT: " << _event_->get_event_number() << std::endl;
-      for(int i = 0; i < no_tracks; ++i)
-      {
-        TrackHdl track1 = tracks[i];
-        for(int j = 0; j < no_tracks; ++j)
-        {
-          std::cout << connections[i][j] << " ";
-        }
-        std::cout << std::endl;
-      }  
-    }
-    
-    // XXX
-    
-    
-    // connecting the tracks = "trajectorizing"
-    std::vector<bool> trajectorized(no_tracks, false);
-    for(int i = 0; i < no_tracks; ++i)
-    {
-      // tracks with no kink candidates can be finalized as a trajectory
-      if(connection_counter[i] == 0)
-      {
-        trajectory_candidates.push_back( std::vector<TrackHdl>(1, tracks[i]) );
-        trajectorized[i] = true;
-      }
-      
-      // we look for untrajectorized track with exactly 1 connection = beggining or end of the polyline track
-      else if(connection_counter[i] == 1 && not trajectorized[i])
-      {
-        std::vector<TrackHdl> composite_track;
-        composite_track.push_back(tracks[i]);
-        trajectorized[i] = true;
-
-        int next_index = i;
-        // for loop ensure that the algorithm stops after no_tracks-1 steps in case that "connection_counter[next_index] == 1" fails
-        for(int count = 0; count < no_tracks-1; ++count)
-        {
-          for(int j = 0; j < no_tracks; ++j)
-          {
-            if(connections[next_index][j] && not trajectorized[j])
-            {
-              next_index = j;
-              composite_track.push_back(tracks[next_index]);
-              trajectorized[next_index] = true;
-              break;
-            }
-          }
-          // checking for the end od polyline trajectory
-          if(connection_counter[next_index] == 1)
-          {
-            break;
-          }
-        }
-        trajectory_candidates.push_back(composite_track);
-      }
-    } 
-    return trajectory_candidates;
-  }
- 
-
-  
-  // takes a trajectory with multiple track segments and calculates the kink points and end points 
-  void Algos::build_polyline_trajectory(PreclusterSolutionHdl precluster_solution, TrajectoryHdl trajectory)
-  {
-    DT_THROW_IF(trajectory->get_segments().size() < 2, std::logic_error, "No polyline trajectory for creating trajectory points");
-    
-    const double max_angle = _config_.polylines.max_kink_angle; 
-    
-    std::vector<PointHdl> & tr_points = trajectory->get_trajectory_points();
-    std::vector<TrackHdl> & segments = trajectory->get_segments();
-
-    // finding the kink points
-    std::vector<PointHdl> kink_points;
-    for(auto i = 0u; i < segments.size() - 1; ++i)
-    {
-      Point intersection = Track::get_intersection_2D(segments[i], segments[i+1]);
-      kink_points.push_back( std::make_shared<Point>(intersection) );
-    }
-
-    // first segment
-    PointHdl kink_point = kink_points.front();
-    PointHdl current_point;
-    PointHdl alternative_point;
-    PointHdl next_alternative_point;
-    PointHdl next_kink_point;
-    
-    TrackHdl segment = segments.front();
-    double t_kink = segment->calculate_t(*kink_point);
-    int hit_count = segment->hit_split_counter(t_kink); 
-    // TODO what if the counts are equal? (case hit_count == 0)
-    std::vector<Association> & associations = segment->get_associations();
-    if(hit_count > 0)
-    {
-      current_point = associations.back().point;
-      alternative_point = associations.front().point;
-    }
-    else
-    {
-      current_point = associations.front().point;
-      alternative_point = associations.back().point;
-    }
-    tr_points.push_back( std::make_shared<Point>(current_point) );
-
-
-    // middle segments
-    for(auto i = 1u; i < segments.size() - 1; ++i)
-    {
-      segment = segments[i];
-      next_kink_point = kink_points[i];
-      double t_kink_next = segment->calculate_t(*next_kink_point);
-      bool fake_next_connection = false;
-       
-      t_kink = segment->calculate_t(*kink_point);
-      hit_count = segment->hit_split_counter(t_kink); 
-      if(hit_count > 0)
-      {
-        next_alternative_point = segment->get_associations().back().point;
-        if(t_kink_next < t_kink)
-        {
-          fake_next_connection = true;
-        }
-      }
-      else
-      {
-        next_alternative_point = segment->get_associations().front().point;
-        if(t_kink_next > t_kink)
-        {
-          fake_next_connection = true;
-        }
-      }
-      
-      double angle;
-      if( not fake_next_connection )
-      {
-        angle = M_PI - Point::calculate_angle_3D( *current_point, *kink_point, *next_kink_point );     
-      }
-      else 
-      {
-        angle = M_PI - Point::calculate_angle_3D( *current_point, *kink_point, *next_alternative_point );
-      }
-      
-      if( angle < max_angle )
-      {
-        tr_points.push_back( std::make_shared<Point>(kink_point) );
-        
-        if( not fake_next_connection )
-        {
-          current_point = kink_point;
-          kink_point = next_kink_point;  
-          alternative_point = next_alternative_point;   
-        }
-        else
-        {
-          tr_points.push_back( std::make_shared<Point>(next_alternative_point) );
-          
-          std::vector<TrackHdl> new_trajectory_candidate(segments.begin() + i + 1, segments.end());
-          TrajectoryHdl new_trajectory = std::make_shared<Trajectory>(new_trajectory_candidate);
-          precluster_solution->get_trajectories().push_back( new_trajectory );
-          
-          segments.resize(i + 1);
-          
-          // recursion on the rest of the segments
-          if(new_trajectory->get_segments().size() > 1)
-          {
-            new_trajectory->mark_as_kinked();
-            build_polyline_trajectory( precluster_solution, new_trajectory );
-          }
-          else
-          {
-            create_line_trajectory_points( new_trajectory );
-          }
-
-          return;
-        }                
-      }
-      else
-      {
-        tr_points.push_back( std::make_shared<Point>(alternative_point) );
-        
-        std::vector<TrackHdl> new_trajectory_candidate(segments.begin() + i, segments.end());
-        TrajectoryHdl new_trajectory = std::make_shared<Trajectory>(new_trajectory_candidate);
-        precluster_solution->get_trajectories().push_back( new_trajectory );
-        
-        segments.resize(i);
-        if( i == 1 )
-        {
-          trajectory->mark_as_straight();
-        }
-        
-        // recursion on the rest of the segments
-        if(new_trajectory->get_segments().size() > 1)
-        {
-          new_trajectory->mark_as_kinked();
-          build_polyline_trajectory( precluster_solution, new_trajectory );
-        }
-        else
-        {
-          create_line_trajectory_points( new_trajectory );
-        }
-
-        return;
-      }
-    }
-    
-    // last segment
-    segment = segments.back();
-    kink_point = kink_points.back();
-    t_kink = segment->calculate_t(*kink_point);
-    hit_count = segment->hit_split_counter(t_kink);
-    
-    PointHdl last_point;
-    if(hit_count > 0)
-    {
-      last_point = segment->get_associations().back().point;
-    }
-    else
-    {
-      last_point = segment->get_associations().front().point;
-    }
-    
-    double angle = M_PI - Point::calculate_angle_3D( *current_point, *kink_point, *last_point );   
-    if( angle < max_angle )
-    {
-      tr_points.push_back( std::make_shared<Point>(kink_point) );
-      tr_points.push_back( std::make_shared<Point>(last_point) );
-    }
-    else
-    {
-      tr_points.push_back( std::make_shared<Point>(alternative_point) );
-        
-      TrajectoryHdl new_trajectory = std::make_shared<Trajectory>( segments.back());
-      precluster_solution->get_trajectories().push_back( new_trajectory );
-      
-      segments.pop_back();
-      if( segments.size() == 1 )
-      {
-        trajectory->mark_as_straight();
-      }
-      create_line_trajectory_points( new_trajectory );
-    }
-    return;
-  }
-  
-  
-  // connecting very close trajectories with small angles
-  void Algos::connect_trajectories(PreclusterSolutionHdl precluster_solution, KinkFinder::ConnectionStrategy strategy)
-  {
-    auto i = 0u;
-    auto & trajectories = precluster_solution->get_trajectories(); 
-    while(i < trajectories.size())
-    {       
-      bool found_connection = false;
-      
-      auto & base_trajectory = trajectories[i];
-      auto & base_trajectory_points = base_trajectory->get_trajectory_points();
-      
-      for(auto j = i + 1; j < trajectories.size(); ++j)
-      {
-        auto & other_trajectory = trajectories[j];
-        auto & other_trajectory_points = other_trajectory->get_trajectory_points();
-        
-        Point kink_point;
-        Trajectory::EndPoint base_endpoint;
-        Trajectory::EndPoint other_endpoint;
-        
-        // case A: front - front
-        if( not found_connection )
-        {
-          PointHdl point1 = base_trajectory_points.front();
-          PointHdl point2 = other_trajectory_points.front();
-          
-          TrackHdl segment1 = base_trajectory->get_segments().front();
-          TrackHdl segment2 = other_trajectory->get_segments().front();
-            
-          KinkFinder finder(segment1, point1,
-                            segment2, point2,
-                            _config_.polylines, _geom_);
-                            
-          finder.process(strategy);
-          if(finder.get_status() == KinkFinder::Status::KINK_FOUND)
-          {
-            kink_point = finder.get_kink_point();
-            base_endpoint = Trajectory::EndPoint::FRONT;
-            other_endpoint = Trajectory::EndPoint::FRONT;
-            found_connection = true;
-          }
-        }
-        
-     
-        // case B: front - back
-        if( not found_connection )
-        {
-          PointHdl point1 = base_trajectory_points.front();
-          PointHdl point2 = other_trajectory_points.back();
-          
-          TrackHdl segment1 = base_trajectory->get_segments().front();
-          TrackHdl segment2 = other_trajectory->get_segments().back();
-          
-          KinkFinder finder(segment1, point1,
-                            segment2, point2,
-                            _config_.polylines, _geom_);
-                            
-          finder.process(strategy);
-          if(finder.get_status() == KinkFinder::Status::KINK_FOUND)
-          {
-            kink_point = finder.get_kink_point();
-            base_endpoint = Trajectory::EndPoint::FRONT;
-            other_endpoint = Trajectory::EndPoint::BACK;
-            found_connection = true;
-          }
-        }
-        
-        // case C: back - front
-        if( not found_connection )
-        {
-          PointHdl point1 = base_trajectory_points.back();
-          PointHdl point2 = other_trajectory_points.front();
-          
-          TrackHdl segment1 = base_trajectory->get_segments().back();
-          TrackHdl segment2 = other_trajectory->get_segments().front();
-          
-          KinkFinder finder(segment1, point1,
-                            segment2, point2,
-                            _config_.polylines, _geom_);
-                            
-          finder.process(strategy);
-          if(finder.get_status() == KinkFinder::Status::KINK_FOUND)
-          {
-            kink_point = finder.get_kink_point();
-            base_endpoint = Trajectory::EndPoint::BACK;
-            other_endpoint = Trajectory::EndPoint::FRONT;
-            found_connection = true;
-          }
-        }
-        
-        // case D: back - back
-        if( not found_connection )
-        {
-          PointHdl point1 = base_trajectory_points.back();
-          PointHdl point2 = other_trajectory_points.back();
-          
-          TrackHdl segment1 = base_trajectory->get_segments().back();
-          TrackHdl segment2 = other_trajectory->get_segments().back();
-          
-          KinkFinder finder(segment1, point1,
-                            segment2, point2,
-                            _config_.polylines, _geom_);
-                            
-          finder.process(strategy);
-          if(finder.get_status() == KinkFinder::Status::KINK_FOUND)
-          {
-            kink_point = finder.get_kink_point();
-            base_endpoint = Trajectory::EndPoint::BACK;
-            other_endpoint = Trajectory::EndPoint::BACK;
-            found_connection = true;
-          }
-        }
-        
-        if( found_connection )
-        {            
-          PointHdl kink_point_hdl = std::make_shared<Point>(kink_point);
-          TrajectoryBuilder::merge_trajectories_into_base(base_trajectory, base_endpoint, 
-                                                          other_trajectory, other_endpoint,
-                                                          kink_point_hdl);
-          
-          trajectories.erase(trajectories.begin() + j);
-          break;
-        }
-        
-      }
-      if(not found_connection)
-      {
-        i++;
-      }
-    }
-    return;
-  }
-  
-  
-    // master function of step 6
-  //  - clustering refinement, trajectory connecting, fit quality calculation
-  //  - Potentially maximum likelihood refinement of the polyline fits...
-  void Algos::refinements(PreclusterHdl precluster)
-  { 
-  	// refining electron tracks
-    if(precluster->is_prompt())
-    {
-      // processed separately for each precluster solution
-      for(auto & precluster_solution : precluster->get_precluster_solutions())
-      {
-        for(auto & trajectory : precluster_solution->get_trajectories())
-        {
-          // polyline trajectories are handled differently
-          if(trajectory->has_kink())
-          {
-            remove_out_of_bound_associations(precluster_solution, trajectory);
-          }
-        }
-        // trying to add unclustered tracker hits to existing trajectories
-        refine_clustering(precluster_solution);
-        connect_trajectories(precluster_solution, KinkFinder::ConnectionStrategy::ENDPOINTS_MIDDLE);
-        
-        // created connection changes the association points -> needs to be updated
-        for(auto & trajectory : precluster_solution->get_trajectories())
-        {
-          if(trajectory->has_kink())
-          {
-            trajectory->update_segments();
-          }
-        }
-      }
-    }  
-    return;
-  }
-  
-  
-  
-  */
-  
-
   
 } //  end of namespace cimrman
 

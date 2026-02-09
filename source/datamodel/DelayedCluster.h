@@ -4,8 +4,12 @@
 // Standard library:
 #include <cmath> // M_PI
 
+// Bayeux headers
+#include <datatools/utils.h>
+
 // Cimrman headers
 #include "datamodel/Cluster.h"
+
 
 namespace cimrman::datamodel {
 
@@ -21,10 +25,6 @@ namespace cimrman::datamodel {
     double reference_time_min = datatools::invalid_real();
     double reference_time_max = datatools::invalid_real();
     double reference_time = datatools::invalid_real();
-
-  public:
-    
-    datatools::logger::priority verbosity = datatools::logger::PRIO_FATAL;
     
   public:
     

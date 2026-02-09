@@ -3,6 +3,10 @@
 #include "datamodel/TrackerHit.h"
 #include "datamodel/OMHit.h"
 #include "datamodel/Event.h"
+#include "datamodel/Track.h"
+#include "datamodel/Precluster.h"
+#include "datamodel/LinearFit.h"
+#include "datamodel/Association.h"
 
 using namespace cimrman::datamodel;
 

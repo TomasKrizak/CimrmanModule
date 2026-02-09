@@ -6,9 +6,6 @@
 #include <memory>
 #include <vector>
 
-// Bayeux headers
-#include <datatools/utils.h>
-
 namespace cimrman::datamodel {
 
   // forward definitions

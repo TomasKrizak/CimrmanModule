@@ -6,9 +6,6 @@
 #include <vector>
 #include <memory>
 
-// Boost:
-#include <boost/multi_array.hpp>
-
 // Bayeux:
 #include <bayeux/datatools/exception.h>
 #include <bayeux/datatools/clhep_units.h>
@@ -22,20 +19,15 @@
 #include "visualization/Visu.h"
 
 #include "datamodel/Event.h"
-#include "datamodel/Association.h"
 #include "datamodel/DelayedCluster.h"
-#include "datamodel/TrackerHit.h"
 #include "datamodel/Precluster.h"
 #include "datamodel/Solution.h"
 #include "datamodel/PreclusterSolution.h"
-#include "datamodel/LinearFit.h"
-#include "datamodel/Track.h"
 #include "datamodel/Trajectory.h"
-#include "datamodel/Point.h"
 
 namespace cimrman {
 
-namespace dm = datamodel;
+  namespace dm = datamodel;
   
   /// Event tracking reconstruction mode
   enum class ElectronRecMode
@@ -103,20 +95,17 @@ namespace dm = datamodel;
   /// Configuration parameters for event tracking reconstruction
   struct CimrmanAlgoConfig
   {
-    datatools::logger::priority verbosity = datatools::logger::PRIO_FATAL;
-    ElectronRecMode electron_mode = ElectronRecMode::undefined;
-    
+    datatools::logger::priority verbosity = datatools::logger::PRIO_FATAL;    
     bool visualization_2D = false;
     bool visualization_3D = false;
-    bool use_provided_preclustering = false;
+    ElectronRecMode electron_mode = ElectronRecMode::undefined;
     bool reconstruct_alphas = false;
+    bool use_provided_preclustering = false;
     bool keep_only_best_solutions = false;
+    
+    
     bool force_default_sigma_r = false; ///< Flag to force the default sigma r value for tracker hits
     double default_sigma_r = 2.0 * CLHEP::mm;
-    
-    // chi2 limiter is not implemented
-    //bool discard_bad_fits = false;
-    //double chi_square_threshold = 20.0; ///< dimensionless
 
     /// Configuration of clustering algorihtms
     ClusteringConfing clustering;
@@ -151,12 +140,12 @@ namespace dm = datamodel;
   private:
     
     // step 1: preclustering
-    void precluster();
+    void precluster(); // master function
     std::vector<std::vector<dm::TrackerHitHdl>> separate_hits(const std::vector<dm::TrackerHitHdl> & hits);
 
 
     // step 2: clustering
-    void electron_clustering(dm::PreclusterHdl precluster);
+    void electron_clustering(dm::PreclusterHdl precluster); // master function
     void recursive_clusterizer(std::vector<dm::TrackerHitHdl> & tracker_hits,
                                std::vector<dm::ClusterHdl> & clusters);
     void find_cluster_Legendre(const std::vector<dm::TrackerHitHdl> & hits, 
@@ -168,11 +157,12 @@ namespace dm = datamodel;
                                      const double phi,
                                      const double r,
                                      const double distance_threshold);
-    std::vector<std::pair<double, double>> estimate_three_hit_tracks(const std::vector<dm::TrackerHitHdl>& hits); // different approach (experimental)
+    std::vector<std::pair<double, double>> estimate_three_hit_tracks(const std::vector<dm::TrackerHitHdl>& hits); 
+      // different approach (experimental)
                                      
 
     // step 2: alpha clustering and track estimation
-    void alpha_clustering(dm::PreclusterHdl precluster);
+    void alpha_clustering(dm::PreclusterHdl precluster); // master function
     std::pair<double, double> find_delayed_cluster(std::vector<dm::TrackerHitHdl> & hits,
                                                    std::vector<dm::TrackerHitHdl> & cluster_hits);
     void estimate_delayed_track(dm::DelayedClusterHdl delayed_cluster);
@@ -180,52 +170,35 @@ namespace dm = datamodel;
 
 
     // step 3: MLM line fitting + ambiguity checking and solving
-    void make_MLM_fits(dm::PreclusterHdl precluster);
+    void make_MLM_fits(dm::PreclusterHdl precluster); // master function
     void make_ML_estimate(dm::LinearFitHdl fit);
     void detect_ambiguity_type(dm::ClusterHdl cluster);
     void create_mirror_fit(dm::ClusterHdl cluster);
     
-    
     // step 4: Linear fits are associated to tracker hits and combined into a precluster solutions
-    void combine_into_precluster_solutions(dm::PreclusterHdl precluster);
+    void combine_into_precluster_solutions(dm::PreclusterHdl precluster); 
     
+    // step 5: Creating simple line trajectories (endpoints identification)
+    void create_line_trajectories(dm::PreclusterSolutionHdl precluster_solution);
+    void create_line_trajectory_endpoints(dm::TrajectoryHdl trajectory);
     
-    // step 5: Kink finding and connecting into polyline trajectories
-    void create_trajectories(dm::PreclusterHdl precluster);
-    
-    void create_polyline_trajectories(dm::PreclusterHdl precluster);
-    void create_line_trajectories(dm::PreclusterHdl precluster,
-                                  dm::Trajectory::Type type = dm::Trajectory::Type::ANY);
-    void create_line_trajectory_points(dm::TrajectoryHdl trajectory);
-    std::vector<std::vector<dm::TrackHdl>> find_polyline_candidates(std::vector<dm::TrackHdl> & tracks,
-                                                                const int side) const;
-    void build_polyline_trajectory(dm::PreclusterSolutionHdl precluster_solution, 
-                                   dm::TrajectoryHdl trajectory);    
-                                   
-
-    // step 6: Trajectory kinks and clustering refinements
-    void refinements(dm::PreclusterHdl precluster);
+    // step 6: Connect the line trajectories into polylines
+    void build_polylines(dm::PreclusterSolutionHdl precluster_solution); 
+                
+    // step 7: Trajectory and clustering refinements
+    void refine_polylines(dm::PreclusterSolutionHdl precluster_solution);
     void remove_out_of_bound_associations(dm::PreclusterSolutionHdl precluster_solution, 
                                           dm::TrajectoryHdl trajectory);
-    void connect_trajectories(dm::PreclusterSolutionHdl precluster_solution,
-                              KinkFinder::ConnectionStrategy strategy);
-    void merge_trajectories_into_base(dm::TrajectoryHdl base_trajectory,
-                                      dm::Trajectory::EndPoint base_endpoint, 
-                                      dm::TrajectoryHdl other_trajectory, 
-                                      dm::Trajectory::EndPoint other_endpoint,
-                                      dm::PointHdl kink_point);
-    
     void refine_clustering(dm::PreclusterSolutionHdl precluster_solution);
     
     
-    
-    // step 7: Evaluating trajectories
-    void evaluate_trajectories(dm::PreclusterHdl precluster);
+    // step 8: Evaluating trajectories
+    void evaluate_trajectories(dm::PreclusterSolutionHdl precluster_solution); 
     void evaluate_trajectory(dm::TrajectoryHdl trajectory);
     
     
-    // step 8: Combining precluster solutions into all solutions
-    void create_solutions();
+    // step 9: Combining precluster solutions into all solutions
+    void create_solutions(); // master function
     void combine_precluster_solutions_into_solutions();
     void evaluate_solutions();
     static bool compare_solutions(const dm::SolutionHdl solution1, const dm::SolutionHdl solution2);
@@ -241,7 +214,6 @@ namespace dm = datamodel;
     Sinogram prompt_sinogram_manager; // support worker class for calculation of prompt hits sinograms 
     Sinogram delayed_sinogram_manager; // support worker class for calculation of delayed hits sinograms 
     
-    friend class KinkFinder;
   };
 
 } //  end of namespace cimrman

@@ -4,9 +4,6 @@
 #include "datamodel/Track.h"
 #include "datamodel/TrackerHit.h"
 
-// Bayeux:
-#include "datatools/exception.h"
-
 namespace cimrman::datamodel {  
   
   void PreclusterSolution::add_track(TrackHdl track)

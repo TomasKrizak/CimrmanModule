@@ -6,9 +6,6 @@
 #include <memory>
 #include <vector>
 
-// Bayeux headers
-#include "datatools/logger.h"
-
 namespace cimrman::datamodel {
 
   // Forward declarations
@@ -32,10 +29,6 @@ namespace cimrman::datamodel {
     std::vector<TrackHdl> unprocessed_tracks;
     std::vector<TrajectoryHdl> trajectories;
     std::vector<ConstTrackerHitHdl> unclustered_tracker_hits;
-    
-  public:
-    
-    datatools::logger::priority verbosity = datatools::logger::PRIO_FATAL;
     
   public:
     

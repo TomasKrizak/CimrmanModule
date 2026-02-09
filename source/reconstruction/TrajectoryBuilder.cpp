@@ -3,9 +3,6 @@
 #include "datamodel/PreclusterSolution.h"
 #include "datamodel/Point.h"
 
-// Standard headers
-//#include <iostream>
-
 using namespace cimrman::datamodel;
 
 namespace cimrman {
@@ -140,7 +137,6 @@ namespace cimrman {
     return KinkFinder::Status::KINK_NOT_FOUND;
   }
       
-
   void TrajectoryBuilder::process()
   {
     // algorithm going through pairs of trajectories, trying to connecting them
@@ -171,7 +167,5 @@ namespace cimrman {
       }
     }
   }      
-        
-      
 
 } //  end of namespace cimrman

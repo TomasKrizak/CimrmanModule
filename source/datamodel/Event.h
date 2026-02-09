@@ -4,10 +4,7 @@
 // Standard headers
 #include <vector>
 #include <iostream>
-
-// Bayeux headers
-#include <bayeux/datatools/logger.h>
-#include <bayeux/datatools/properties.h>
+#include <memory>
 
 namespace cimrman::datamodel {
   
@@ -48,6 +45,10 @@ namespace cimrman::datamodel {
     // things excluded by Cimrman, stored to pass them along to other modules
     std::vector<TrackerHitHdl> invalid_tracker_hits; // prompt tracker hits without drift radius - unusable
     std::vector<ClusterHdl> unfitted_clusters; ///< List of unfitted clusters (not completely implemented - not needed)	
+	  
+  public:
+    
+    //datatools::logger::priority verbosity = datatools::logger::PRIO_FATAL;
 	  
   public:
   
