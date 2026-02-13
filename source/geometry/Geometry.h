@@ -35,7 +35,14 @@ namespace cimrman {
   private:
   
     const snemo::geometry::locator_plugin * geo_loc;
-
+    const geomtools::mapping * geoMapping;
+    const geomtools::id_mgr * geoIdMgr;
+    
+    const geomtools::placement * frenchTrkVolPlacement;
+    const geomtools::placement * italianTrkVolPlacement;
+    const geomtools::box * frenchTrkVolBox;
+    const geomtools::box * italianTrkVolBox;
+    
   public:    
     
     double tc_radius = 22.0 * CLHEP::mm;
@@ -60,7 +67,7 @@ namespace cimrman {
     double xw_sizey = 150.0 * CLHEP::mm;
     double xw_sizez = 208.5 * CLHEP::mm;
     
-    //enum Side = {IT, FR};
+    enum Side {IT, FR, ANY};
     
   public:
     
@@ -73,7 +80,7 @@ namespace cimrman {
     double distance_to_MW(const datamodel::Point & point /*, Side side*/) const;
     double distance_to_XW(const datamodel::Point & point /*, Side side*/) const;
     double distance_to_SF(const datamodel::Point & point /*, Side side*/) const;
-    bool is_inside_tracker(const datamodel::Point & point /*, Side side*/) const;
+    bool is_inside_tracker(const datamodel::Point & point, Side side = Side::ANY) const;
     
     std::array<double, 2> get_cell_position(const int SRL[3]) const;
     std::array<double, 3> get_MW_OM_position(const int SWCR[4]) const;
