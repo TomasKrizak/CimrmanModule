@@ -1,12 +1,21 @@
 // Cimrman headers
 #include "module/Cimrman.h"
+#include "datamodel/Association.h"
+#include "datamodel/Event.h"
+#include "datamodel/LinearFit.h"
 #include "datamodel/TrackerHit.h"
 #include "datamodel/OMHit.h"
-#include "datamodel/Event.h"
-#include "datamodel/Track.h"
 #include "datamodel/Precluster.h"
-#include "datamodel/LinearFit.h"
-#include "datamodel/Association.h"
+#include "datamodel/Track.h"
+
+// Falaise headers
+#include "falaise/snemo/datamodels/calibrated_tracker_hit.h"
+#include "falaise/snemo/datamodels/data_model.h"
+#include "falaise/snemo/datamodels/event_header.h"
+#include "falaise/snemo/datamodels/tracker_clustering_solution.h"
+#include "falaise/snemo/datamodels/tracker_trajectory_solution.h"
+#include "falaise/snemo/datamodels/line_trajectory_pattern.h"
+#include "falaise/snemo/datamodels/polyline_trajectory_pattern.h"
 
 using namespace cimrman::datamodel;
 
@@ -32,7 +41,7 @@ namespace cimrman {
     : cimrman(cimrman_)
   {
     // Initialize the geometry informations from the father reconstruction module
-    cimrman._init_geom_(geom);
+    geom = Geometry(cimrman._geoManager_, cimrman._config_.verbosity);
 
     // Instantiate an 'algo' object:
     palgo = std::make_unique<Algos>(geom);
@@ -52,79 +61,6 @@ namespace cimrman {
   {
     // Initialize the reference to the Falaise's geometry manager service
     _geoManager_ = snemo::service_handle<snemo::geometry_svc>{};
-    return;
-  }
-
-  void Cimrman::_init_geom_(Geometry & geom_)
-  {
-    DT_LOG_DEBUG(_config_.verbosity, "Initializing geometry info...");
-    const geomtools::mapping & geoMapping = _geoManager_->get_mapping();
-    const geomtools::id_mgr & geoIdMgr = _geoManager_->get_id_mgr();
-    std::string locator_plugin_name;
-    const snemo::geometry::locator_plugin * geoLocator
-      = snemo::geometry::getSNemoLocator(*_geoManager_.instance(), locator_plugin_name);
-    const snemo::geometry::calo_locator & caloLocator = geoLocator->caloLocator();
-    const snemo::geometry::xcalo_locator & xcaloLocator = geoLocator->xcaloLocator();
-    const snemo::geometry::gveto_locator & gvetoLocator = geoLocator->gvetoLocator();
-    const snemo::geometry::gg_locator & ggLocator = geoLocator->geigerLocator();
-
-    geom_.has_Bi_source = false;
-    std::vector<geomtools::geom_id> sourceCalibrationCarrierGids;
-    uint32_t sourceCalibrationCarrierType = geomtools::geom_id::INVALID_TYPE; // (1110)
-    if (geoIdMgr.has_category_info("source_calibration_carrier")) {
-      geom_.has_Bi_source = true;
-      sourceCalibrationCarrierType =
-	geoIdMgr.get_category_info("source_calibration_carrier").get_type();
-      geomtools::geom_id sourceCalibrarionCarrierGidPattern(sourceCalibrationCarrierType,
-							    0, // module
-							    geomtools::geom_id::ANY_ADDRESS,  // track
-							    geomtools::geom_id::ANY_ADDRESS); // position
-      geoMapping.compute_matching_geom_id(sourceCalibrarionCarrierGidPattern, sourceCalibrationCarrierGids);
-      if (sourceCalibrationCarrierGids.size()) {
-	      const geomtools::geom_info & srcCalibCarrierGinfo = geoMapping.get_geom_info(sourceCalibrationCarrierGids.front());
-	      const geomtools::logical_volume & srcCalibCarrierLog = srcCalibCarrierGinfo.get_logical();
-	      const geomtools::i_shape_3d & srcCalibCarrierShape = srcCalibCarrierLog.get_shape();    
-	      const geomtools::box & srcCalibCarrierBox = dynamic_cast<const geomtools::box &>(srcCalibCarrierShape);
-	      double x = srcCalibCarrierBox.get_z();
-	      double y = srcCalibCarrierBox.get_y();
-	      double z = srcCalibCarrierBox.get_x();
-	      DT_LOG_DEBUG(_config_.verbosity, "x = " << x);
-	      DT_LOG_DEBUG(_config_.verbosity, "y = " << y);
-	      DT_LOG_DEBUG(_config_.verbosity, "z = " << z);
-	      geom_.Bi_source_x = x;
-	      geom_.Bi_source_y = y;
-	      geom_.Bi_source_z = z;
-      }
-    }
-    
-    geom_.tc_radius = ggLocator.cellRadius() / CLHEP::mm;
-    DT_LOG_DEBUG(_config_.verbosity, "tc_radius = " << geom_.tc_radius);
-
-    geom_.mw_sizex = caloLocator.blockThickness() / CLHEP::mm; // 194.0 (31.0);
-    geom_.mw_sizey = caloLocator.blockWidth() / CLHEP::mm; // 256.0;
-    geom_.mw_sizez = caloLocator.blockHeight() / CLHEP::mm; // 256.0;
-
-    geom_.gv_sizex = gvetoLocator.blockHeight() / CLHEP::mm; // 308.0;
-    geom_.gv_sizey = gvetoLocator.blockWidth() / CLHEP::mm; // 310.0;
-    geom_.gv_sizez = gvetoLocator.blockThickness() / CLHEP::mm; // 150.0;
- 
-    geom_.xw_sizex = xcaloLocator.blockWidth() / CLHEP::mm; // 200.0;
-    geom_.xw_sizey = xcaloLocator.blockThickness() / CLHEP::mm; // 150.0;
-    geom_.xw_sizez = xcaloLocator.blockHeight() / CLHEP::mm; // 208.5;
-
-    DT_LOG_DEBUG(_config_.verbosity, "mw_sizex = " << geom_.mw_sizex);
-    DT_LOG_DEBUG(_config_.verbosity, "mw_sizey = " << geom_.mw_sizey);
-    DT_LOG_DEBUG(_config_.verbosity, "mw_sizez = " << geom_.mw_sizez);
-    DT_LOG_DEBUG(_config_.verbosity, "gv_sizex = " << geom_.gv_sizex);
-    DT_LOG_DEBUG(_config_.verbosity, "gv_sizey = " << geom_.gv_sizey);
-    DT_LOG_DEBUG(_config_.verbosity, "gv_sizez = " << geom_.gv_sizez);
-    DT_LOG_DEBUG(_config_.verbosity, "xw_sizex = " << geom_.xw_sizex);
-    DT_LOG_DEBUG(_config_.verbosity, "xw_sizey = " << geom_.xw_sizey);
-    DT_LOG_DEBUG(_config_.verbosity, "xw_sizez = " << geom_.xw_sizez);
-    
-    // TODO stored locators for cell and OM positions
-    geom_.geo_loc = geoLocator;
-    
     return;
   }
 
@@ -193,12 +129,9 @@ namespace cimrman {
     
     // Geometry manager :
     _geoManager_ = snemo::service_handle<snemo::geometry_svc>{services_};
+
     // Instantiate the PIMPL working material:
     _work_ = std::make_unique<pimpl_type>(*this);
- 
-    //XXX testing - remove later
-    //clustering_solutions = TH1I("clustering_solutions", "clustering_solutions", 33, -0.5, 32.5);
-    //trajectory_solutions = TH1I("trajectory_solutions", "trajectory_solutions", 33, -0.5, 32.5);
  
     this->_set_initialized(true);
     return;
@@ -206,17 +139,6 @@ namespace cimrman {
 
   void Cimrman::reset() 
   {   
-    //XXX testing - remove later
-    /*
-    TCanvas canvas("solutions", "solutions", 1000, 800);
-    canvas.cd();
-    clustering_solutions.Draw();
-    canvas.SaveAs("clustering_solutions.png");
-    trajectory_solutions.Draw();
-    canvas.SaveAs("trajectory_solutions.png");
-    canvas.Close();    
-    */
-  
     DT_THROW_IF(!is_initialized(), std::logic_error,
 		"Module '" << get_name() << "' is not initialized !");
     this->_set_initialized(false);
@@ -262,12 +184,6 @@ namespace cimrman {
     // removing duplicate clustering solutions and fixing their connections to trajectory solutions
     _remove_duplicate_clustering_solutions_(the_tracker_clustering_data, the_tracker_trajectory_data);
 
-
-    //XXX testing - remove later
-    //clustering_solutions.Fill( the_tracker_clustering_data.solutions().size() );
-    //trajectory_solutions.Fill( the_tracker_trajectory_data.get_solutions().size() );
-
-
     return falaise::processing::status::PROCESS_OK;
   }
 
@@ -288,6 +204,7 @@ namespace cimrman {
 
 	    const auto & falaiseCDbank = workItem.get<calibrated_data>(_config_.CD_label);
 	    DT_LOG_DEBUG(_config_.verbosity, "Nb calo hits = " << falaiseCDbank.calorimeter_hits().size());
+	    
 	    for(const auto & calohit : falaiseCDbank.calorimeter_hits())
       {
         int SWCR[4] = {-1,-1,-1,-1};

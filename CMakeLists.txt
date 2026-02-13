@@ -43,6 +43,7 @@ list(APPEND Cimrman_SOURCES
   source/reconstruction/KinkFinder.cpp
   source/reconstruction/Sinogram.cpp
   source/reconstruction/TrajectoryBuilder.cpp
+  source/geometry/Geometry.cpp
   source/visualization/Visu.cpp
   source/datamodel/Association.cpp
   source/datamodel/Cluster.cpp

@@ -6,41 +6,21 @@
 #include <iomanip>
 
 // Interface from Falaise
-#include <falaise/snemo/geometry/calo_locator.h>
-#include <falaise/snemo/geometry/gveto_locator.h>
-#include <falaise/snemo/geometry/xcalo_locator.h>
-#include <falaise/snemo/geometry/gg_locator.h>
-#include <falaise/snemo/geometry/locator_helpers.h>
-#include <falaise/snemo/geometry/locator_plugin.h>
-
 #include "falaise/snemo/processing/module.h"
-
-#include "falaise/snemo/datamodels/calibrated_data.h"
-#include "falaise/snemo/datamodels/calibrated_tracker_hit.h"
-#include "falaise/snemo/datamodels/data_model.h"
-#include "falaise/snemo/datamodels/event_header.h"
-#include "falaise/snemo/datamodels/tracker_clustering_data.h"
-#include "falaise/snemo/datamodels/tracker_clustering_solution.h"
-#include "falaise/snemo/datamodels/tracker_trajectory_data.h"
-#include "falaise/snemo/datamodels/tracker_trajectory_solution.h"
-#include "falaise/snemo/datamodels/line_trajectory_pattern.h"
-#include "falaise/snemo/datamodels/polyline_trajectory_pattern.h"
-#include "falaise/snemo/datamodels/particle_track_data.h"
-
 #include "falaise/snemo/services/geometry.h"
 #include "falaise/snemo/services/service_handle.h"
+#include "falaise/snemo/datamodels/calibrated_data.h"
+#include "falaise/snemo/datamodels/tracker_clustering_data.h"
+#include "falaise/snemo/datamodels/tracker_trajectory_data.h"
 
-// Third party:
-// - Bayeux:
-#include <bayeux/datatools/clhep_units.h>
+// Third party - Bayeux:
+#include "bayeux/dpp/base_module.h"
+#include "bayeux/mctools/simulated_data.h"
 #include <bayeux/datatools/logger.h>
 #include <bayeux/datatools/handle.h>
 #include <bayeux/datatools/exception.h>
 #include <bayeux/geomtools/line_3d.h>
 #include <bayeux/geomtools/polyline_3d.h>
-#include <bayeux/geomtools/box.h>
-#include "bayeux/dpp/base_module.h"
-#include "bayeux/mctools/simulated_data.h"
 
 // Cimrman headers
 #include "geometry/Geometry.h"
@@ -115,7 +95,7 @@ namespace cimrman {
     void _set_defaults_();
 
     /// Initialize geometry informations for the TK algos (needs the Falaise's geometry manager, see below)
-    void _init_geom_(Geometry & geom_);
+    //void _init_geom_(Geometry & geom_);
 
     /// Configuration parameters
     config_type _config_;

@@ -4,6 +4,7 @@
 // Standard headers
 #include <vector>
 #include <memory>
+#include <functional>
 
 // Cimrman headers
 #include "datamodel/Point.h"
@@ -68,12 +69,23 @@ namespace cimrman {
 
     // associated tracker hit criteria
     bool check_close_hits_2D( const double max_angle ) const;
+    
+    // endpoints criteria
     bool check_are_ends_close_2D( const double max_distance ) const;
     bool check_are_ends_close_3D( const double max_distance ) const;
 
     // distance criteria specific to the connection strategies
     bool check_vertical_distance( const double max_distance) const;
     bool check_middle_point_distance( const double max_distance) const;
+    
+    
+    // checks a list of criteria 
+    using Criterion = std::function<bool()>;
+    bool check_criteria(std::initializer_list<Criterion> criteria) const; 
+
+    // process runs one of these procedures based on the chosen connection strategy
+    void vertical_alignment_procedure(); 
+    void endpoints_middle_procedure();
      
   public:
     
@@ -84,12 +96,7 @@ namespace cimrman {
                 const PolylinesConfig & _config,
                 const Geometry & _geom);
 
-    // master function 
     void process( ConnectionStrategy strategy );
-    
-    // process runs one of these procedures based on the chosen connection strategy
-    void large_kink_procedure(); 
-    void small_kink_procedure();
     
     Status get_status() const;
     datamodel::Point get_kink_point() const;

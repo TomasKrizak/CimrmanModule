@@ -82,14 +82,15 @@ namespace cimrman {
     double min_distance_from_main_walls = 50.0 * CLHEP::mm;
     double min_distance_from_X_walls = 50.0 * CLHEP::mm;
     
-    // clustering refinements
-    double max_extention_distance = 120.0 * CLHEP::mm;  
-
     // small kink reconstruction
     double max_trajectories_middlepoint_distance = 15.0 * CLHEP::mm; 
     double max_trajectory_endpoints_distance = 100.0 * CLHEP::mm;
     double min_trajectory_connection_angle = 0.0 * CLHEP::deg;
     double max_trajectory_connection_angle = 40.0 * CLHEP::deg;
+    
+    // clustering refinements
+    double max_extention_distance = 120.0 * CLHEP::mm;  
+    double hit_association_distance = 6.0 * CLHEP::mm;
   };
   
   /// Configuration parameters for event tracking reconstruction

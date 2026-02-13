@@ -165,7 +165,7 @@ namespace cimrman {
     }
     
     ///=======================================================
-    ///############## alpha clustering config ################
+    ///############## Alpha clustering config ################
     ///=======================================================
     
     if (config_.has_key("alphas.clustering_resolution_phi")) {
@@ -271,6 +271,7 @@ namespace cimrman {
     
     ///=======================================================
     ///########## polyline reconstruction config #############
+    ///########## Vertical alignment strategy    #############
     ///=======================================================
     
     if (config_.has_key("polylines.max_vertical_distance")) {
@@ -317,41 +318,7 @@ namespace cimrman {
       DT_LOG_DEBUG(this->verbosity, "polylines.max_kink_angle: " 
                                     << this->polylines.max_kink_angle / CLHEP::deg << " degrees"); 
     }
-    
-    if (config_.has_key("polylines.max_trajectories_middlepoint_distance")) {
-      this->polylines.max_trajectories_middlepoint_distance =
-        config_.fetch_real_with_explicit_dimension("polylines.max_trajectories_middlepoint_distance",
-                                                   "length");
-      DT_THROW_IF(this->polylines.max_trajectories_middlepoint_distance < 0.0 * CLHEP::mm,
-		            std::logic_error,
-		            "Invalid polylines.max_trajectories_middlepoint_distance value");
-      DT_LOG_DEBUG(this->verbosity, "polylines.max_trajectories_middlepoint_distance: " 
-                                    << this->polylines.max_trajectories_middlepoint_distance << "mm"); 
-    }
-    
-    if (config_.has_key("polylines.max_trajectory_endpoints_distance")) {
-      this->polylines.max_trajectory_endpoints_distance =
-        config_.fetch_real_with_explicit_dimension("polylines.max_trajectory_endpoints_distance",
-                                                   "length");
-      DT_THROW_IF(this->polylines.max_trajectory_endpoints_distance < 0.0 * CLHEP::mm,
-		              std::logic_error,
-		              "Invalid polylines.max_trajectory_endpoints_distance value");
-      DT_LOG_DEBUG(this->verbosity, "polylines.max_trajectory_endpoints_distance: " 
-                                    << this->polylines.max_trajectory_endpoints_distance << "mm"); 
-    }
-    
-    if (config_.has_key("polylines.max_trajectory_connection_angle")) {
-      this->polylines.max_trajectory_connection_angle =
-        config_.fetch_real_with_explicit_dimension("polylines.max_trajectory_connection_angle",
-                                                   "angle");
-        
-      DT_THROW_IF(this->polylines.max_trajectory_connection_angle < 0.0 * CLHEP::deg 
-                || this->polylines.max_trajectory_connection_angle > 180.0 * CLHEP::deg,
-		            std::logic_error,
-		            "Invalid polylines.max_trajectory_connection_angle value");
-      DT_LOG_DEBUG(this->verbosity, "polylines.max_trajectory_connection_angle: " 
-                                    << this->polylines.max_trajectory_connection_angle / CLHEP::deg << " degrees");
-    }
+   
     
     if (config_.has_key("polylines.min_distance_from_foil")) {
       this->polylines.min_distance_from_foil =
@@ -384,6 +351,69 @@ namespace cimrman {
 		              "Invalid polylines.min_distance_from_X_walls value");  
       DT_LOG_DEBUG(this->verbosity, "polylines.min_distance_from_X_walls: " 
                                     << this->polylines.min_distance_from_X_walls << "mm");  
+    }
+    
+    
+    ///=======================================================
+    ///########## polyline reconstruction config #############
+    ///########## Trajectory extension           #############
+    ///=======================================================
+    
+    
+    if (config_.has_key("polylines.max_trajectories_middlepoint_distance")) {
+      this->polylines.max_trajectories_middlepoint_distance =
+        config_.fetch_real_with_explicit_dimension("polylines.max_trajectories_middlepoint_distance",
+                                                   "length");
+      DT_THROW_IF(this->polylines.max_trajectories_middlepoint_distance < 0.0 * CLHEP::mm,
+		            std::logic_error,
+		            "Invalid polylines.max_trajectories_middlepoint_distance value");
+      DT_LOG_DEBUG(this->verbosity, "polylines.max_trajectories_middlepoint_distance: " 
+                                    << this->polylines.max_trajectories_middlepoint_distance << "mm"); 
+    }
+    
+    
+    if (config_.has_key("polylines.max_trajectory_endpoints_distance")) {
+      this->polylines.max_trajectory_endpoints_distance =
+        config_.fetch_real_with_explicit_dimension("polylines.max_trajectory_endpoints_distance",
+                                                   "length");
+      DT_THROW_IF(this->polylines.max_trajectory_endpoints_distance < 0.0 * CLHEP::mm,
+		              std::logic_error,
+		              "Invalid polylines.max_trajectory_endpoints_distance value");
+      DT_LOG_DEBUG(this->verbosity, "polylines.max_trajectory_endpoints_distance: " 
+                                    << this->polylines.max_trajectory_endpoints_distance << "mm"); 
+    }
+    
+    if (config_.has_key("polylines.max_trajectory_connection_angle")) {
+      this->polylines.max_trajectory_connection_angle =
+        config_.fetch_real_with_explicit_dimension("polylines.max_trajectory_connection_angle",
+                                                   "angle");
+        
+      DT_THROW_IF(this->polylines.max_trajectory_connection_angle < 0.0 * CLHEP::deg 
+                || this->polylines.max_trajectory_connection_angle > 180.0 * CLHEP::deg,
+		            std::logic_error,
+		            "Invalid polylines.max_trajectory_connection_angle value");
+      DT_LOG_DEBUG(this->verbosity, "polylines.max_trajectory_connection_angle: " 
+                                    << this->polylines.max_trajectory_connection_angle / CLHEP::deg << " degrees");
+    }
+    
+    ///=======================================================
+    ///########## polyline reconstruction config #############
+    ///########## Trajectory extension           #############
+    ///=======================================================
+    
+    
+    if (config_.has_key("polylines.hit_association_distance")) {
+      this->polylines.hit_association_distance =
+        config_.fetch_real_with_explicit_dimension("polylines.hit_association_distance",
+                                                   "length");
+      DT_LOG_DEBUG(this->verbosity, "polylines.hit_association_distance: " 
+                    << this->polylines.hit_association_distance << "mm");
+    }
+    else
+    {
+      this->polylines.hit_association_distance = clustering.hit_association_distance;
+      DT_LOG_DEBUG(this->verbosity, "polylines.hit_association_distance: " 
+                    << this->polylines.hit_association_distance << "mm");
     }
     
     return;
@@ -493,33 +523,41 @@ namespace cimrman {
     // dissects the event into preclusters (sub-event) = unrelated parts of event (in the context of tracking) 
     // existing TCD bank can be used as preclustering if allowed in the configuration
     // separation based on: prompt / delayed hits and distance of tracker hits  
-    if( _event_->get_preclusters().empty() ) {
-      DT_LOG_DEBUG(_config_.verbosity, "Step 1: Preclustering");
+    if( _event_->get_preclusters().empty() ) {  
+      DT_LOG_DEBUG(_config_.verbosity, 
+        "Step 1: Preclustering");
       precluster();
     }
     else {
-      DT_LOG_DEBUG(_config_.verbosity, "Skipping Step 1: Preclustering - TCD bank provided");
+      // "use_provided_preclustering" decision is used in main Cimrman class in "populate_event" function
+      DT_LOG_DEBUG(_config_.verbosity, 
+        "Skipping Step 1: Preclustering - TCD bank provided");
     }
-    
     
     // Most of the reconstruction is done separately for each precluster 
     for(auto & precluster : _event_->get_preclusters())
     {
       // Step 2: clustering
-      DT_LOG_DEBUG(_config_.verbosity, "  Step 2: Prompt tracker hit clustering");
-      electron_clustering( precluster );
+      if (_config_.electron_mode != ElectronRecMode::undefined) {
+        DT_LOG_DEBUG(_config_.verbosity, 
+        "  Step 2: Prompt tracker hit clustering");
+        electron_clustering( precluster );
+      }
       
       if (_config_.reconstruct_alphas) {
-        DT_LOG_DEBUG(_config_.verbosity, "  Step 2: Delayed tracker hit clustering");
+        DT_LOG_DEBUG(_config_.verbosity, 
+          "  Step 2: Delayed tracker hit clustering");
         alpha_clustering(precluster); 
       }
 
       // Step 3: MLM fitting
-      DT_LOG_DEBUG(_config_.verbosity, "  Step 3: MLM line fitting + ambiguity checking and solving");
+      DT_LOG_DEBUG(_config_.verbosity, 
+        "  Step 3: MLM line fitting + ambiguity checking and solving");
       make_MLM_fits(precluster);
       
       // Step 4: creating precluster solutions
-      DT_LOG_DEBUG(_config_.verbosity, "  Step 4: Linear fits are associated to tracker hits and combined into a precluster solutions");
+      DT_LOG_DEBUG(_config_.verbosity, 
+        "  Step 4: Linear fits are associated to tracker hits and combined into a precluster solutions");
       combine_into_precluster_solutions(precluster);
       
       
@@ -528,39 +566,43 @@ namespace cimrman {
       for(auto & precluster_solution : precluster->get_precluster_solutions())
       {
         // Step 5: identifying ends of the segments
-        DT_LOG_DEBUG(_config_.verbosity, "    Step 5: Creating line trajectories");
+        DT_LOG_DEBUG(_config_.verbosity, 
+          "    Step 5: Creating line trajectories");
         create_line_trajectories(precluster_solution);
       
         // Step 6: building polylines
         if( precluster->is_prompt() && 
             _config_.electron_mode == ElectronRecMode::polyline ) {      
-          DT_LOG_DEBUG(_config_.verbosity, "    Step 6: Creating polyline trajectories");
+          DT_LOG_DEBUG(_config_.verbosity, 
+            "    Step 6: Creating polyline trajectories");
           build_polylines(precluster_solution);
           refine_polylines(precluster_solution);
           refine_clustering(precluster_solution);
         }
         
         // Step 7: trajectory evaluation
-        DT_LOG_DEBUG(_config_.verbosity, "    Step 7: Evaluating trajectories");
+        DT_LOG_DEBUG(_config_.verbosity, 
+          "    Step 7: Evaluating trajectories");
         evaluate_trajectories(precluster_solution);
       }
     }
 
     // Step 8: solutions for individual preclusters are combined and joined together into full event solutions
-    DT_LOG_DEBUG(_config_.verbosity, "Step 8: Combining precluster solutions into event solutions");
+    DT_LOG_DEBUG(_config_.verbosity, 
+      "Step 8: Combining precluster solutions into event solutions");
     create_solutions();
 
 
     // Visualizations: (more of a debug tool) 
-    if(_visu_ && _config_.visualization_2D)
-    {
-      DT_LOG_DEBUG(_config_.verbosity, "Creating and saving 2D visualizations");
+    if(_visu_ && _config_.visualization_2D) {
+      DT_LOG_DEBUG(_config_.verbosity, 
+        "Creating and saving 2D visualizations");
       _visu_->make_top_projection();
     }
       
-    if(_visu_ && _config_.visualization_3D)
-    {
-      DT_LOG_DEBUG(_config_.verbosity, "Creating and saving 3D visualizations");
+    if(_visu_ && _config_.visualization_3D) {
+      DT_LOG_DEBUG(_config_.verbosity, 
+        "Creating and saving 3D visualizations");
       _visu_->build_event();
     }
     
@@ -1623,8 +1665,19 @@ namespace cimrman {
   {  
     // the connection process it outsourced to a dedicated TrajectoryBuilder worker class
     TrajectoryBuilder builder(precluster_solution, _config_.polylines, _geom_ );
-    builder.add_connection_strategy(KinkFinder::ConnectionStrategy::VERTICAL_ALIGNMENT);
-    builder.add_connection_strategy(KinkFinder::ConnectionStrategy::ENDPOINTS_MIDDLE);
+    
+    // VERTICAL_ALIGNMENT strategy designed for bigger kinks 
+      //if( _config_.polylines.try_vertical_alignment )
+    {
+      builder.add_connection_strategy(KinkFinder::ConnectionStrategy::VERTICAL_ALIGNMENT);    
+    }
+    
+    // ENDPOINTS_MIDDLE strategy designed for smaller kinks
+      //if( _config_.polylines.try_endpoints_middle )
+    {
+      builder.add_connection_strategy(KinkFinder::ConnectionStrategy::ENDPOINTS_MIDDLE);
+    }
+    
     builder.process();
   }
   
@@ -1696,7 +1749,7 @@ namespace cimrman {
   // if it can be associated to some segment of some trajectory
   void Algos::refine_clustering(PreclusterSolutionHdl precluster_solution)
   {
-    const double distance_threshold = _config_.clustering.hit_association_distance;
+    const double distance_threshold     = _config_.polylines.hit_association_distance;
     const double max_extention_distance = _config_.polylines.max_extention_distance;
     
     auto & unclustered_tracker_hits = precluster_solution->get_unclustered_tracker_hits();

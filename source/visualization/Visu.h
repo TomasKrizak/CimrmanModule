@@ -1,9 +1,6 @@
 #ifndef FALAISE_CIMRMAN_VISU_H
 #define FALAISE_CIMRMAN_VISU_H
 
-// Standard headers
-#include <functional>
-
 // Bayeux:
 #include <bayeux/datatools/bit_mask.h>
 #include <datatools/logger.h>

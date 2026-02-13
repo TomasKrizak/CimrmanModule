@@ -44,6 +44,14 @@ namespace cimrman {
     KinkFinder::Status try_connecting(datamodel::TrajectoryHdl base_trajectory,
                                       datamodel::TrajectoryHdl other_trajectory);                         
   
+    // merges "other_trajectory" into "base_trajectory" based on the chosen ends
+    // and provided kink point, leaving other_trajectory empty! 
+    static void merge_trajectories_into_base(datamodel::TrajectoryHdl base_trajectory,
+                                             datamodel::Trajectory::EndPoint base_endpoint, 
+                                             datamodel::TrajectoryHdl other_trajectory, 
+                                             datamodel::Trajectory::EndPoint other_endpoint,
+                                             datamodel::PointHdl kink_point);
+
   public:
   
     TrajectoryBuilder() = default;
@@ -53,15 +61,8 @@ namespace cimrman {
                       const Geometry & _geom);
   
     void process();
+    
     void add_connection_strategy(KinkFinder::ConnectionStrategy _connection_strategy);
-  
-    // merges "other_trajectory" into "base_trajectory" based on the chosen ends
-    // and provided kink point, leaving other_trajectory empty! 
-    static void merge_trajectories_into_base(datamodel::TrajectoryHdl base_trajectory,
-                                             datamodel::Trajectory::EndPoint base_endpoint, 
-                                             datamodel::TrajectoryHdl other_trajectory, 
-                                             datamodel::Trajectory::EndPoint other_endpoint,
-                                             datamodel::PointHdl kink_point);
   
   };
 

@@ -122,7 +122,7 @@ namespace cimrman{
     return (has_close_hit1 && has_close_hit2);
   }
   
-    // passes if the 3D angular deviation is in bounds
+  // passes if the 3D angular deviation is in bounds
   bool KinkFinder::check_angle_3D_before( const double min_angle, const double max_angle ) const
   { 
     // we need to calculate angle between the kink point and the opposite ends of the tracks
@@ -163,7 +163,7 @@ namespace cimrman{
   } 
   
   
-      // passes if the 3D angular deviation is in bounds
+  // passes if the 3D angular deviation is in bounds
   bool KinkFinder::check_angle_2D_before( const double min_angle, const double max_angle ) const
   { 
     // we need to calculate angle between the kink point and the opposite ends of the tracks
@@ -209,26 +209,7 @@ namespace cimrman{
   {
     if( status == Status::UNPROCESSED ) return false;
     
-    // TODO there must be better way to check tracker volume
-    // geo locators to access geometry information
-    const snemo::geometry::gg_locator & ggLocator = geom.geo_loc->geigerLocator();    
-    
-    // x coordinate of the outside border of tracker (side 1) 
-    const double tracker_x_max = ggLocator.getXCoordOfLayer(1, 8) + geom.tc_radius;    
-    if( std::abs(kink_point.x) > tracker_x_max ) return false;
-    
-    // x coordinate of the inside border (source foil gap) of tracker (side 1)
-    const double tracker_x_min = ggLocator.getXCoordOfLayer(1, 0) - geom.tc_radius;
-    if( std::abs(kink_point.x) < tracker_x_min ) return false;
-
-    // y coordinate of the border of tracker (side 1)
-    const double tracker_y_max = ggLocator.getYCoordOfRow(1, 112) + geom.tc_radius;
-    if( std::abs(kink_point.y) > tracker_y_max ) return false;
-    
-    // TODO what about Z coordinate???
-    
-    // if all passes, returns true
-    return true;
+    return geom.is_inside_tracker(kink_point);
   }
   
   // passes if kink point is more than min_distance from mainwall
@@ -236,10 +217,8 @@ namespace cimrman{
   { 
     if( status == Status::UNPROCESSED ) return false;
     
-    const snemo::geometry::calo_locator & caloLocator = geom.geo_loc->caloLocator();
-    const double mainwall_x_cord = caloLocator.getXCoordOfWall(1);
-    
-    return std::abs(kink_point.x) < (mainwall_x_cord - min_distance);
+    const double distance = geom.distance_to_MW(kink_point);
+    return distance > min_distance;
   }
   
   // passes if kink point is more than min_distance from Xwall
@@ -247,10 +226,8 @@ namespace cimrman{
   {
     if( status == Status::UNPROCESSED ) return false;
     
-    const snemo::geometry::xcalo_locator & xcaloLocator = geom.geo_loc->xcaloLocator();
-    const double X_wall_y_cord = xcaloLocator.getYCoordOfWall(1, 1);
-  
-    return std::abs(kink_point.y) < (X_wall_y_cord - min_distance);
+    double distance = geom.distance_to_XW(kink_point);
+    return distance > min_distance;
   }
   
   // passes if kink point is more than min_distance from source foil
@@ -258,7 +235,8 @@ namespace cimrman{
   {
     if( status == Status::UNPROCESSED ) return false;
     
-    return (std::abs(kink_point.x) > min_distance);
+    const double distance = geom.distance_to_SF(kink_point);
+    return distance > min_distance;
   }
 
   // passes if the ends of the tracks are close enough in 2D
@@ -303,120 +281,94 @@ namespace cimrman{
     return (distance1 < max_distance) && (distance2 < max_distance); 
   }
    
+   
   void KinkFinder::process(ConnectionStrategy strategy)
   {
-    if( strategy == ConnectionStrategy::VERTICAL_ALIGNMENT )
+    if( strategy == ConnectionStrategy::VERTICAL_ALIGNMENT ) 
     {
-      large_kink_procedure();
+      vertical_alignment_procedure();
     }
-    else if( strategy == ConnectionStrategy::ENDPOINTS_MIDDLE )
+    else if( strategy == ConnectionStrategy::ENDPOINTS_MIDDLE ) 
     {
-      small_kink_procedure();
+      endpoints_middle_procedure();
     }
   }
   
-  void KinkFinder::large_kink_procedure()
+  bool KinkFinder::check_criteria(std::initializer_list<Criterion> criteria) const
   {
-    DT_THROW_IF(endpoint1 == nullptr || endpoint2 == nullptr, std::logic_error, "Missing endpoints for kink investigation!");
+    for(const auto & criterium : criteria)
+    {
+      bool passed = criterium();
+      if( not passed )
+      {
+        return false;
+      }
+    }
+    return true;
+  }
+  
+  void KinkFinder::vertical_alignment_procedure()
+  {
+    DT_THROW_IF(endpoint1 == nullptr || endpoint2 == nullptr, std::logic_error, 
+      "Missing endpoints for kink investigation!");
     
     // connection strategy
     kink_point = Track::get_intersection_2D(track1, track2);    
     status = Status::CANDIDATE_LOCATED;
     
-    // set of criteria
-    bool passed = check_are_ends_close_2D( config.max_trajectory_endpoints_distance );
-    if(not passed){
-      status = Status::KINK_NOT_FOUND;
-      return;
-    }
+    // constructing a list of criteria
+    std::initializer_list<Criterion> criteria = {
+      [&]{ return check_are_ends_close_2D( config.max_trajectory_endpoints_distance ); },
+      [&]{ return check_close_hits_2D( config.max_tracker_hits_distance ); },
+      [&]{ return check_angle_3D_after( config.min_kink_angle, config.max_kink_angle ); },
+      [&]{ return check_angle_3D_before( config.min_kink_angle, config.max_kink_angle ); },
+      [&]{ return check_vertical_distance( config.max_vertical_distance ); },
+      [&]{ return check_is_inside_tracker(); },
+      [&]{ return check_distance_to_SF( config.min_distance_from_foil ); },
+      [&]{ return check_distance_to_MW( config.min_distance_from_main_walls ); },
+      [&]{ return check_distance_to_XW( config.min_distance_from_X_walls ); }
+    };
     
-    passed = check_close_hits_2D( config.max_tracker_hits_distance );
-    if(not passed){
-      status = Status::KINK_NOT_FOUND;
-      return;
+    // applying criteria
+    bool passed = check_criteria( criteria );
+    if( passed ) 
+    {
+      status = Status::KINK_FOUND;
     }
-    
-    passed = check_angle_3D_after( config.min_kink_angle, config.max_kink_angle );
-    if(not passed){
+    else 
+    {
       status = Status::KINK_NOT_FOUND;
-      return;
     }
-    
-    passed = check_angle_3D_before( config.min_kink_angle, config.max_kink_angle );
-    if(not passed){
-      status = Status::KINK_NOT_FOUND;
-      return;
-    }
-    
-    passed = check_vertical_distance( config.max_vertical_distance );
-    if(not passed){
-      status = Status::KINK_NOT_FOUND;
-      return;
-    }
-    
-    passed = check_is_inside_tracker();
-    if(not passed){
-      status = Status::KINK_NOT_FOUND;
-      return;
-    }
-    
-    passed = check_distance_to_SF( config.min_distance_from_foil );
-    if(not passed){
-      status = Status::KINK_NOT_FOUND;
-      return;
-    }
-    
-    passed = check_distance_to_MW( config.min_distance_from_main_walls );
-    if(not passed){
-      status = Status::KINK_NOT_FOUND;
-      return;
-    }
-    
-    passed = check_distance_to_XW( config.min_distance_from_X_walls );
-    if(not passed){
-      status = Status::KINK_NOT_FOUND;
-      return;
-    }
-    
-    status = Status::KINK_FOUND; 
   }
   
-  void KinkFinder::small_kink_procedure()
+  void KinkFinder::endpoints_middle_procedure()
   {
-    DT_THROW_IF(endpoint1 == nullptr || endpoint2 == nullptr, std::logic_error, "Missing endpoints for kink investigation!");
+    DT_THROW_IF(endpoint1 == nullptr || endpoint2 == nullptr, std::logic_error,
+      "Missing endpoints for kink investigation!");
 
     // connection strategy
     kink_point = Point::get_middle_point(endpoint1, endpoint2);
     status = Status::CANDIDATE_LOCATED;
-    
-    // set of criteria
-    bool passed = check_are_ends_close_3D( config.max_trajectory_endpoints_distance );
-    if(not passed){
-      status = Status::KINK_NOT_FOUND;
-      return;
-    }
-    
-    passed = check_close_hits_2D( config.max_tracker_hits_distance );
-    if(not passed){
-      status = Status::KINK_NOT_FOUND;
-      return;
-    }
-    
-    passed = check_middle_point_distance( config.max_trajectories_middlepoint_distance );
-    if(not passed){
-      status = Status::KINK_NOT_FOUND;
-      return;
-    }
-    
-    passed = check_angle_3D_after( config.min_trajectory_connection_angle, config.max_trajectory_connection_angle );
-    if(not passed){
-      status = Status::KINK_NOT_FOUND;
-      return;
-    }
-    
-    status = Status::KINK_FOUND;
-  }
 
+    // constructing a list of criteria
+    std::initializer_list<Criterion> criteria = {
+      [&]{ return check_are_ends_close_3D( config.max_trajectory_endpoints_distance ); },
+      [&]{ return check_close_hits_2D( config.max_tracker_hits_distance ); },
+      [&]{ return check_middle_point_distance( config.max_trajectories_middlepoint_distance ); },
+      [&]{ return check_angle_3D_after( config.min_trajectory_connection_angle, config.max_trajectory_connection_angle ); },
+    };
+    
+    // applying criteria
+    bool passed = check_criteria( criteria );
+    if( passed )
+    {
+      status = Status::KINK_FOUND;
+    }
+    else
+    {
+      status = Status::KINK_NOT_FOUND;
+    }
+  }
   
   KinkFinder::Status KinkFinder::get_status() const
   {
@@ -425,7 +377,8 @@ namespace cimrman{
   
   Point KinkFinder::get_kink_point() const
   {
-    DT_THROW_IF(status == Status::UNPROCESSED, std::logic_error, "Kink point not constructed!");
+    DT_THROW_IF(status == Status::UNPROCESSED, std::logic_error, 
+      "Kink point not constructed!");
     
     return kink_point;
   }

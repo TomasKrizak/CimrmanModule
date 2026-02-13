@@ -32,6 +32,13 @@
 #include "TGraph.h"
 #include "TPolyMarker3D.h"
 
+// Standard headers
+//#include <functional>
+#include <memory>
+#include <vector>
+#include <array>
+
+
 using namespace cimrman::datamodel;
 
 namespace cimrman {
@@ -71,10 +78,6 @@ namespace cimrman {
     if (solution_id >= _event_->get_solutions().size()) return;
     ConstSolutionHdl solution = _event_->get_solutions()[solution_id];
 
-    const snemo::geometry::calo_locator & caloLocator = _geom_.geo_loc->caloLocator();
-    const snemo::geometry::xcalo_locator & xcaloLocator = _geom_.geo_loc->xcaloLocator();
-    const snemo::geometry::gg_locator & ggLocator = _geom_.geo_loc->geigerLocator();
-
     gROOT->SetBatch(true);
     TCanvas canvas("canvas","", 5800, 1600);     
     canvas.Range(-2900.0, -700.0, 2900.0, 900.0);
@@ -93,15 +96,17 @@ namespace cimrman {
       for(int om_column = 0; om_column < 20; om_column++) 
       {
         int SWCR[4] = {om_side, -1, om_column, 0};
-        auto ohit = std::make_shared<OMHit>(SWCR);   
+        auto ohit = std::make_shared<OMHit>(SWCR);           
+        std::array<double, 3> pos = _geom_.get_MW_OM_position( SWCR );
         
-        ohit->set_x( caloLocator.getXCoordOfWall(om_side) );	
-        ohit->set_y( caloLocator.getYCoordOfColumn(om_side, om_column) );
+        ohit->set_x( pos[0] );	
+        ohit->set_y( pos[1] );
 
-        std::shared_ptr<TBox> calo = std::make_shared<TBox>(ohit->get_y() - _geom_.mw_sizey / 2.0, 
-                              -(ohit->get_x() + _geom_.mw_sizex / 2.0), 
-                              ohit->get_y() + _geom_.mw_sizey / 2.0, 
-                              -(ohit->get_x() - _geom_.mw_sizex / 2.0));
+        std::shared_ptr<TBox> calo = std::make_shared<TBox>(
+                          ohit->get_y() - _geom_.mw_sizey / 2.0, 
+                        -(ohit->get_x() + _geom_.mw_sizex / 2.0), 
+                          ohit->get_y() + _geom_.mw_sizey / 2.0, 
+                        -(ohit->get_x() - _geom_.mw_sizex / 2.0));
 
         calorimeter_blocks.push_back(calo);
                     
@@ -134,14 +139,17 @@ namespace cimrman {
         {
           int SWCR[4] = {om_side, om_wall, om_column, 0};
           auto ohit = std::make_shared<OMHit>(SWCR); 
-                        
-          ohit->set_x( xcaloLocator.getXCoordOfColumn(om_side, om_wall, om_column) );	
-          ohit->set_y( xcaloLocator.getYCoordOfWall(om_side, om_wall) );
+          std::array<double, 3> pos = _geom_.get_XW_OM_position( SWCR );
+          
+          ohit->set_x( pos[0] );	
+          ohit->set_y( pos[1] );
                                                           
-          std::shared_ptr<TBox> calo = std::make_shared<TBox>(ohit->get_y() - _geom_.xw_sizey / 2.0, 
-                                                            -(ohit->get_x() + _geom_.xw_sizex / 2.0), 
-                                                              ohit->get_y() + _geom_.xw_sizey / 2.0, 
-                                                            -(ohit->get_x() - _geom_.xw_sizex / 2.0));
+          std::shared_ptr<TBox> calo = std::make_shared<TBox>(
+                            ohit->get_y() - _geom_.xw_sizey / 2.0, 
+                          -(ohit->get_x() + _geom_.xw_sizex / 2.0), 
+                            ohit->get_y() + _geom_.xw_sizey / 2.0, 
+                          -(ohit->get_x() - _geom_.xw_sizex / 2.0));
+                          
           calorimeter_blocks.push_back(calo);
                           
           bool is_hit = false;
@@ -172,8 +180,9 @@ namespace cimrman {
       auto thit = std::make_shared<TrackerHit>(cell_num); 
       
       int* SRL = thit->get_SRL();
-      thit->set_x( ggLocator.getXCoordOfLayer(SRL[0], SRL[2]) );
-      thit->set_y( ggLocator.getYCoordOfRow(SRL[0], SRL[1]) );
+      std::array<double, 2> pos = _geom_.get_cell_position(SRL);
+      thit->set_x( pos[0] );
+      thit->set_y( pos[1] );
       
       double radius = _geom_.tc_radius;
       double sigma = std::numeric_limits<double>::quiet_NaN();
@@ -389,10 +398,6 @@ namespace cimrman {
     ConstSolutionHdl solution = _event_->get_solutions()[solution_id];
     gROOT->SetBatch(true);
         
-    const snemo::geometry::calo_locator & caloLocator = _geom_.geo_loc->caloLocator();
-    const snemo::geometry::xcalo_locator & xcaloLocator = _geom_.geo_loc->xcaloLocator();
-    const snemo::geometry::gveto_locator & gvetoLocator = _geom_.geo_loc->gvetoLocator();
-        
     TFile* file = new TFile(Form("./Events_visu/Run-%d_event-%d_solution-%d_3D.root",
                             _event_->get_run_number(),
                             _event_->get_event_number(),
@@ -423,19 +428,13 @@ namespace cimrman {
       TGeoVolume * calo = nullptr;
       OMHit ohit = OMHit(omnum); 
       int* SWCR = ohit.get_SWCR();
-      double pos[3];
+      std::array<double, 3> pos;
          
       if(omnum < 520) // Mainwall
       {
-        pos[0] = caloLocator.getXCoordOfWall(SWCR[0]);	
-        pos[1] = caloLocator.getYCoordOfColumn(SWCR[0], SWCR[2]);
-        pos[2] = caloLocator.getZCoordOfRow(SWCR[0], SWCR[3]);
-        
+        pos = _geom_.get_MW_OM_position( SWCR );
         calo = gGeoManager->MakeBox(Form("OM:%d.%d.%d.%d",
-			     SWCR[0],
-			     SWCR[1],
-			     SWCR[2],
-			     SWCR[3]),
+			      SWCR[0], SWCR[1], SWCR[2], SWCR[3]),
 			    Vacuum,
 			    _geom_.mw_sizex / 2.0,
 			    _geom_.mw_sizey / 2.0,
@@ -443,15 +442,9 @@ namespace cimrman {
       }
       else if(omnum < 648) // Xwall
       {
-        pos[0] = xcaloLocator.getXCoordOfColumn(SWCR[0], SWCR[1], SWCR[2]);	
-        pos[1] = xcaloLocator.getYCoordOfWall(SWCR[0], SWCR[1]);
-        pos[2] = xcaloLocator.getZCoordOfRow(SWCR[0], SWCR[1], SWCR[3]);
-      	
+        pos = _geom_.get_XW_OM_position( SWCR );
         calo = gGeoManager->MakeBox(Form("OM:%d.%d.%d.%d",
-			     SWCR[0],
-			     SWCR[1],
-			     SWCR[2],
-			     SWCR[3]),
+			      SWCR[0], SWCR[1], SWCR[2], SWCR[3]),
 			    Vacuum,
 			    _geom_.xw_sizex / 2.0,
 			    _geom_.xw_sizey / 2.0,
@@ -459,15 +452,9 @@ namespace cimrman {
       }
       else // Gveto
       {
-        pos[0] = gvetoLocator.getXCoordOfColumn(SWCR[0], SWCR[1], SWCR[2]);	
-        pos[1] = gvetoLocator.getYCoordOfColumn(SWCR[0], SWCR[1], SWCR[2]);
-        pos[2] = gvetoLocator.getZCoordOfWall(SWCR[0], SWCR[1]);
-   
+        pos = _geom_.get_GV_OM_position( SWCR );
         calo = gGeoManager->MakeBox(Form("OM:%d.%d.%d.%d",
-			     SWCR[0],
-			     SWCR[1],
-			     SWCR[2],
-			     SWCR[3]),
+			      SWCR[0], SWCR[1], SWCR[2], SWCR[3]),
 		      Vacuum,
 		      _geom_.gv_sizex / 2.0,
 		      _geom_.gv_sizey / 2.0,
@@ -498,8 +485,8 @@ namespace cimrman {
 					 _geom_.Bi_source_z / 2.0);
             
         TGeoHMatrix *trans = new TGeoHMatrix("Trans");
-        trans->SetDy( (column - 2.5) * _geom_.Bi_source_dist_y );
-        trans->SetDz( (row - 3.0) * _geom_.Bi_source_dist_z );
+        trans->SetDy( (double(column) - 2.5) * _geom_.Bi_source_dist_y );
+        trans->SetDz( (double(row) - 3.0) * _geom_.Bi_source_dist_z );
                     
         Bi_source->SetLineColor(kCyan);
         Bi_source->SetLineWidth(3);
@@ -514,18 +501,12 @@ namespace cimrman {
     {
       TGeoVolume *box;
       const int* SWCR = hit->get_SWCR();
-      double pos[3];
+      std::array<double, 3> pos;
       if(hit->get_OM_num() >= 0 && hit->get_OM_num() < 520) // Mainwall
       {
-        pos[0] = caloLocator.getXCoordOfWall(SWCR[0]);	
-        pos[1] = caloLocator.getYCoordOfColumn(SWCR[0], SWCR[2]);
-        pos[2] = caloLocator.getZCoordOfRow(SWCR[0], SWCR[3]);
-      
+        pos = _geom_.get_MW_OM_position( SWCR );
         box = gGeoManager->MakeBox(Form("OM:%d.%d.%d.%d",
-				   SWCR[0],
-			     SWCR[1],
-			     SWCR[2],
-			     SWCR[3]),
+				      SWCR[0], SWCR[1], SWCR[2], SWCR[3]),
 		       Vacuum,
 		       _geom_.mw_sizex / 2.0,
 		       _geom_.mw_sizey / 2.0,
@@ -533,15 +514,9 @@ namespace cimrman {
       }
       else if(hit->get_OM_num() < 648) // Xwall
       {
-        pos[0] = xcaloLocator.getXCoordOfColumn(SWCR[0], SWCR[1], SWCR[2]);	
-        pos[1] = xcaloLocator.getYCoordOfWall(SWCR[0], SWCR[1]);
-        pos[2] = xcaloLocator.getZCoordOfRow(SWCR[0], SWCR[1], SWCR[3]);
-      
+        pos = _geom_.get_XW_OM_position( SWCR );
         box = gGeoManager->MakeBox(Form("OM:%d.%d.%d.%d",
-				   SWCR[0],
-			     SWCR[1],
-			     SWCR[2],
-			     SWCR[3]),
+				      SWCR[0], SWCR[1], SWCR[2], SWCR[3]),
 		       Vacuum,
 		       _geom_.xw_sizex / 2.0,
 		       _geom_.xw_sizey / 2.0,
@@ -549,14 +524,9 @@ namespace cimrman {
       }
       else // Gveto
       {
-        pos[0] = gvetoLocator.getXCoordOfColumn(SWCR[0], SWCR[1], SWCR[2]);	
-        pos[1] = gvetoLocator.getYCoordOfColumn(SWCR[0], SWCR[1], SWCR[2]);
-        pos[2] = gvetoLocator.getZCoordOfWall(SWCR[0], SWCR[1]);
+        pos = _geom_.get_GV_OM_position( SWCR );
         box = gGeoManager->MakeBox(Form("OM:%d.%d.%d.%d",
-				   SWCR[0],
-			     SWCR[1],
-			     SWCR[2],
-			     SWCR[3]),
+				      SWCR[0], SWCR[1], SWCR[2], SWCR[3]),
 		       Vacuum,
 		       _geom_.gv_sizex / 2.0,
 		       _geom_.gv_sizey / 2.0,
@@ -646,7 +616,10 @@ namespace cimrman {
             {
               found = true;
               const auto& association_point = association.point;
-              association_points->SetPoint(association_point_counter++, association_point->x, association_point->y, association_point->z);
+              association_points->SetPoint(association_point_counter++, 
+                                           association_point->x, 
+                                           association_point->y, 
+                                           association_point->z);
               break;
             }
           }
@@ -676,57 +649,6 @@ namespace cimrman {
     association_points->SetMarkerColor(kRed);
     file->WriteObject(association_points, "association_points");
     
-    /*
-    if(tracking_option_ & show_tracking_tracks)
-    {
-      std::vector<ConstTKtrackHdl> all_tracks = _event_->get_all_tracks(); 
-      for(auto i = 0u; i < all_tracks.size(); ++i)
-      {
-        const auto & trackPtr = all_tracks[i];
-        TPolyLine3D *track = new TPolyLine3D();
-        track->SetPoint(0, 0.0, trackPtr->get_b(), trackPtr->get_d());
-        double x,y,z;
-                    
-        x = 435.0;
-        if( trackPtr->get_side() == 0 ) 
-        {
-          x = -x;
-        }         
-        y = trackPtr->get_a()*x + trackPtr->get_b();
-                    
-        if( y > 2505.5 )
-        {
-          x = (2505.5-trackPtr->get_b())/trackPtr->get_a();
-          y = trackPtr->get_a()*x + trackPtr->get_b();
-                          
-        }
-        else if( y < -2505.5 )
-        {
-          x = (-2505.5-trackPtr->get_b())/trackPtr->get_a();
-          y = trackPtr->get_a()*x + trackPtr->get_b();
-        }
-        z = trackPtr->get_c()*x + trackPtr->get_d();
-                    
-        if( z > 1550.0 )
-        {
-          x = (1550.0-trackPtr->get_d())/trackPtr->get_c();
-          y = trackPtr->get_a()*x + trackPtr->get_b();
-          z = trackPtr->get_c()*x + trackPtr->get_d();
-        }
-        else if( z < -1550.0 )
-        {
-          x = (-1550.0-trackPtr->get_d())/trackPtr->get_c();
-          y = trackPtr->get_a()*x + trackPtr->get_b();
-          z = trackPtr->get_c()*x + trackPtr->get_d();
-        }
-        track->SetPoint(1, x, y, z);                        
-        track->SetLineColor(kBlue);
-        track->SetLineWidth(2);
-        file->WriteObject(track, Form("track-%d", i));
-        delete track;
-      }
-    }*/
-        
     if(tracking_option_)
     {
       std::vector<ConstTrajectoryHdl> trajectories = solution->get_trajectories();
