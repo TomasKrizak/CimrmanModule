@@ -60,15 +60,21 @@ namespace cimrman::datamodel {
     const std::vector<Association> & get_associations() const; 
     
     void sort_associations();
-    double calculate_t(double x, double y) const;   
-    double calculate_t(const Point & point) const;   
-    double calculate_t(ConstPointHdl & point) const;
-    int hit_split_counter(double t_reference) const;
-    double horizontal_distance_to_line(const Point & point) const;
-  
     void update_associations();
     void evaluate();
     
+    double calculate_t(double x, double y) const;   
+    double calculate_t(const Point & point) const;   
+    double calculate_t(ConstPointHdl & point) const;
+    
+    double horizontal_distance_to_line(const Point & point) const;
+    double distance_to_line(const Point & point) const;
+    
+    ConstPointHdl get_front_endpoint_hdl() const;
+    ConstPointHdl get_back_endpoint_hdl() const;
+    Point get_front_endpoint() const;
+    Point get_back_endpoint() const;
+  
     const LinearFitHdl & get_fit() const;
     
     void set_a(double _a);

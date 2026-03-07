@@ -11,4 +11,4 @@ cmake .. \
   -DCMAKE_CXX_FLAGS="-O3 -fno-math-errno"
 
 # Build using many jobs
-make -j 4
+make 

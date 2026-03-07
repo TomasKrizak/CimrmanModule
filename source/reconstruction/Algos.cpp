@@ -1665,6 +1665,12 @@ namespace cimrman {
   {  
     // the connection process it outsourced to a dedicated TrajectoryBuilder worker class
     TrajectoryBuilder builder(precluster_solution, _config_.polylines, _geom_ );
+
+    // CLOSEST_APPROACH strategy
+      //if( _config_.polylines.try_closest_approach )
+    {
+      //builder.add_connection_strategy(KinkFinder::ConnectionStrategy::CLOSEST_APPROACH);    
+    }
     
     // VERTICAL_ALIGNMENT strategy designed for bigger kinks 
       //if( _config_.polylines.try_vertical_alignment )

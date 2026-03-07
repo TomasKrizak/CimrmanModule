@@ -32,11 +32,14 @@ namespace cimrman {
     // after connection strategy finishes, kink is either confirmed (KINK_FOUND)
     // or rejected (KINK_NOT_FOUND)
   
-    enum ConnectionStrategy{ VERTICAL_ALIGNMENT, ENDPOINTS_MIDDLE };
+    enum ConnectionStrategy{ VERTICAL_ALIGNMENT, ENDPOINTS_MIDDLE, CLOSEST_APPROACH };
     // ConnectionStrategy defines which strategy and set of criteria (which procedure) is chosen by the process function
     // VERTICAL_ALIGNMENT: connection of the track is enforced by changing only vertical parts of the fit
     //                     (2D intersection of the tracks is used)
+    //                     ( stable for large kink, makes the horizontal fits very precise)
     // ENDPOINTS_MIDDLE: kink is formed as a middle-point between the two endpoints to be connected
+    //                   (inaccurate for larger kinks, very robust for small angles)
+    // CLOSEST_APPROACH: kink is formed as the point closest to both (infinite) lines
 
   private:
    
@@ -77,7 +80,7 @@ namespace cimrman {
     // distance criteria specific to the connection strategies
     bool check_vertical_distance( const double max_distance) const;
     bool check_middle_point_distance( const double max_distance) const;
-    
+    bool check_kink_point_distance( const double max_distance) const;
     
     // checks a list of criteria 
     using Criterion = std::function<bool()>;
@@ -86,6 +89,10 @@ namespace cimrman {
     // process runs one of these procedures based on the chosen connection strategy
     void vertical_alignment_procedure(); 
     void endpoints_middle_procedure();
+    void closest_approach_procedure();
+    
+    // building the kink point
+    void build_closest_approach_point();
      
   public:
     

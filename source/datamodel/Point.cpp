@@ -104,5 +104,77 @@ namespace cimrman::datamodel {
   {
     return get_middle_point(*point1, *point2);
   }   
+     
+  Point Point::cross_product(const Point & point1, const Point & point2)
+  {
+    double x = (point1.y * point2.z) - (point1.z * point2.y);
+    double y = (point1.z * point2.x) - (point1.x * point2.z);
+    double z = (point1.x * point2.y) - (point1.y * point2.x);
+    return {x, y, z};
+  }
+  
+  Point Point::cross_product(const PointHdl point1, const PointHdl point2)
+  {
+    return cross_product( *point1, *point2 );
+  }
+ 
+  double Point::dot_product(const Point & point1, const Point & point2)
+  {
+    return (point1.x * point2.x) + (point1.y * point2.y) + (point1.z * point2.z);
+  }
+  
+  double Point::dot_product(const PointHdl point1, const PointHdl point2)
+  {
+    return dot_product( *point1, *point2);
+  } 
+  
+  Point Point::operator+(const Point & point) const
+  {
+    return { x + point.x, y + point.y, z + point.z };
+  }
+  
+  Point Point::operator-(const Point & point) const
+  {
+    return { x - point.x, y - point.y, z - point.z };
+  }
+  
+  Point Point::operator*(const double factor) const
+  {
+    return { factor * x, factor * y, factor * z };
+  }
+  
+  Point Point::operator/(const double factor) const
+  {
+    return { x / factor, y / factor, z / factor };
+  }
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 } //  end of namespace cimrman::datamodel

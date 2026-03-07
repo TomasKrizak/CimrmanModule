@@ -89,6 +89,20 @@ namespace cimrman::datamodel {
   {
     return std::abs(fit->r - point.x * std::sin(fit->phi) + point.y * std::cos(fit->phi)); 
   }
+  
+  double Track::distance_to_line(const Point & point) const
+  {
+    double sin_phi = std::sin(fit->phi);
+    double cos_phi = std::cos(fit->phi);
+    double tan_theta = std::tan(fit->theta);
+    
+    const double closest_t = ((point.x * cos_phi) + (point.y * sin_phi) + ((point.z - fit->h) * tan_theta)) / (1.0 + tan_theta * tan_theta); 
+    const Point closest_point = { (closest_t * cos_phi) + (fit->r * sin_phi),
+                                  (closest_t * sin_phi) - (fit->r * cos_phi),
+                                  (closest_t * tan_theta) + fit->h };
+    
+    return Point::distance_3D(point, closest_point);
+  }
 
   void Track::update_associations()
   {
@@ -149,6 +163,28 @@ namespace cimrman::datamodel {
       square_error_Z = datatools::invalid_real();
     }
     return;
+  }
+  
+  ConstPointHdl Track::get_front_endpoint_hdl() const
+  {
+    return associations.front().point;
+  }
+  
+  ConstPointHdl Track::get_back_endpoint_hdl() const
+  {
+    return associations.back().point;
+  }
+  
+  Point Track::get_front_endpoint() const
+  {
+    ConstPointHdl front = associations.front().point;
+    return {front->x, front->y, front->z};
+  }
+  
+  Point Track::get_back_endpoint() const
+  {
+    ConstPointHdl back = associations.back().point;
+    return {back->x, back->y, back->z};
   }
 
   void Track::set_a(double _a)
@@ -239,23 +275,6 @@ namespace cimrman::datamodel {
   const std::vector<Association> & Track::get_associations() const
   {
     return associations;
-  }
-
-  int Track::hit_split_counter(double t_reference) const
-  {
-    int count = 0;
-    for(const auto & association : associations)
-    {
-      if(association.parameter_t > t_reference)
-      {
-        count++;
-      }
-      else
-      {
-        count--;
-      }
-    }
-    return count;
   }
   
   Point Track::get_intersection_2D(const TrackHdl & track1, const TrackHdl & track2)

@@ -42,8 +42,25 @@ namespace cimrman::datamodel {
     static double calculate_angle_3D(const Point & point1, const Point & point2, const Point & point3);
     static double calculate_angle_3D(const PointHdl point1, const PointHdl point2, const PointHdl point3);
     
+    // calculates the point between the two points
     static Point get_middle_point(const Point & point1, const Point & point2);
     static Point get_middle_point(const PointHdl point1, const PointHdl point2);
+    
+    // vector helpers:
+    
+    // treats the 3D points as vectors and calculates their cross product
+    static Point cross_product(const Point & point1, const Point & point2);
+    static Point cross_product(const PointHdl point1, const PointHdl point2);
+    
+    // treats the 3D points as vectors and calculates their dot product
+    static double dot_product(const Point & point1, const Point & point2);
+    static double dot_product(const PointHdl point1, const PointHdl point2);
+    
+    Point operator+(const Point & point1) const;
+    Point operator-(const Point & point1) const;
+    Point operator*(const double factor) const;
+    Point operator/(const double factor) const;
+    
   };
 
 } //  end of namespace cimrman::datamodel
