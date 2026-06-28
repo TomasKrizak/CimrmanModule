@@ -278,7 +278,8 @@ namespace cimrman{
       [&]{ return check_close_hits_2D( config.max_tracker_hits_distance ); },
       [&]{ return check_angle_3D_after( config.min_kink_angle, config.max_kink_angle ); },
       [&]{ return check_angle_3D_before( config.min_kink_angle, config.max_kink_angle ); },
-      [&]{ return check_vertical_distance( config.max_vertical_distance ); },
+      /*[&]{ return check_vertical_distance( config.max_vertical_distance ); },*/
+      [&]{ return check_kink_point_distance( config.max_vertical_distance ); },
       [&]{ return check_is_inside_tracker(); },
       [&]{ return check_distance_to_SF( config.min_distance_from_foil ); },
       [&]{ return check_distance_to_MW( config.min_distance_from_main_walls ); },
@@ -340,7 +341,7 @@ namespace cimrman{
       [&]{ return check_close_hits_2D( config.max_tracker_hits_distance ); },
       [&]{ return check_angle_3D_after( config.min_kink_angle, config.max_kink_angle ); },
       [&]{ return check_angle_3D_before( config.min_kink_angle, config.max_kink_angle ); },
-      [&]{ return check_kink_point_distance( config.max_vertical_distance ); },
+      [&]{ return check_kink_point_distance( config.max_vertical_distance / 2.0 ); },
       [&]{ return check_is_inside_tracker(); },
       [&]{ return check_distance_to_SF( config.min_distance_from_foil ); },
       [&]{ return check_distance_to_MW( config.min_distance_from_main_walls ); },

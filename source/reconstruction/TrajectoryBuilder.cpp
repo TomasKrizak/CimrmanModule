@@ -166,6 +166,8 @@ namespace cimrman {
         i++;
       }
     }
+    
+    connection_strategies.clear();
   }      
 
 } //  end of namespace cimrman

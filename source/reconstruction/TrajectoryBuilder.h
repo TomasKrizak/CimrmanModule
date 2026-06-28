@@ -60,6 +60,7 @@ namespace cimrman {
                       const PolylinesConfig & _config,
                       const Geometry & _geom);
   
+    // performs the added strategies on a loaded precluster, flushes the strategy list afterwads 
     void process();
     
     void add_connection_strategy(KinkFinder::ConnectionStrategy _connection_strategy);
