@@ -36,7 +36,7 @@ namespace cimrman {
         }
         
         // creating png by converting the buffer into ROOT histogram
-        if(settings.save_sinograms)
+        if(settings.save_sinograms )
         {
           save_sinogram();
         }
