@@ -25,7 +25,8 @@ namespace cimrman {
   }
   
   struct Geometry;
-  struct PolylinesConfig;
+  struct VerticalAlignmentConfig;
+  struct EndpointsMiddleConfig;
   
   
   class TrajectoryBuilder
@@ -34,7 +35,9 @@ namespace cimrman {
   
     datamodel::PreclusterSolutionHdl precluster_solution = nullptr;
     std::vector<KinkFinder::ConnectionStrategy> connection_strategies;
-    const PolylinesConfig & config;
+    
+    const VerticalAlignmentConfig & vertical_alignment_config;
+    const EndpointsMiddleConfig & endpoints_middle_config;
     const Geometry & geom;
                                                 
     static std::pair<datamodel::TrackHdl, datamodel::PointHdl> get_trajectory_end(
@@ -57,7 +60,8 @@ namespace cimrman {
     TrajectoryBuilder() = default;
     
     TrajectoryBuilder(datamodel::PreclusterSolutionHdl _precluster_solution,
-                      const PolylinesConfig & _config,
+                      const VerticalAlignmentConfig & _vertical_alignment_config,
+                      const EndpointsMiddleConfig & _endpoints_middle_config,
                       const Geometry & _geom);
   
     // performs the added strategies on a loaded precluster, flushes the strategy list afterwads 

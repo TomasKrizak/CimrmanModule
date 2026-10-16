@@ -8,10 +8,12 @@ using namespace cimrman::datamodel;
 namespace cimrman {
 
   TrajectoryBuilder::TrajectoryBuilder(datamodel::PreclusterSolutionHdl _precluster_solution, 
-                                      const PolylinesConfig & _config,
+                                      const VerticalAlignmentConfig & _vertical_alignment_config,
+                                      const EndpointsMiddleConfig & _endpoints_middle_config,
                                       const Geometry & _geom)
     : precluster_solution(_precluster_solution),
-      config(_config),
+      vertical_alignment_config(_vertical_alignment_config),
+      endpoints_middle_config(_endpoints_middle_config),
       geom(_geom)
   {
     return;
@@ -20,7 +22,7 @@ namespace cimrman {
   void TrajectoryBuilder::add_connection_strategy(KinkFinder::ConnectionStrategy _connection_strategy)
   {
     connection_strategies.push_back(_connection_strategy);
-  }
+  }  
   
   // merges "other_trajectory" into "base_trajectory" based on the chosen ends
   // and provided kink point, leaving other_trajectory empty! 
@@ -116,7 +118,9 @@ namespace cimrman {
             
       KinkFinder finder(segment1, point1,
                         segment2, point2,
-                        config, geom);
+                        vertical_alignment_config,
+                        endpoints_middle_config,
+                        geom);
                   
       for(const auto & connection_strategy : connection_strategies)
       {

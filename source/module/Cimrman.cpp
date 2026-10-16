@@ -113,8 +113,14 @@ namespace cimrman {
     // Extract properties with prefix 'alphas.' :
     config_.export_and_rename_starting_with(recParamConfig, "alphas.", "alphas.");
     
-    // Extract properties with prefix 'polylines.' :
-    config_.export_and_rename_starting_with(recParamConfig, "polylines.", "polylines.");
+    // Extract properties with prefix 'vertical_alignment.' :
+    config_.export_and_rename_starting_with(recParamConfig, "vertical_alignment.", "vertical_alignment.");
+    
+    // Extract properties with prefix 'endpoints_middle.' :
+    config_.export_and_rename_starting_with(recParamConfig, "endpoints_middle.", "endpoints_middle.");
+    
+    // Extract properties with prefix 'trajectory_refinement.' :
+    config_.export_and_rename_starting_with(recParamConfig, "trajectory_refinement.", "trajectory_refinement.");
     _config_.recConfig.parse(recParamConfig);
     
     return;

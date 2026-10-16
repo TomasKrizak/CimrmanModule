@@ -19,8 +19,8 @@ namespace cimrman {
   }
   
   struct Geometry;
-  struct PolylinesConfig;
-  
+  struct VerticalAlignmentConfig;
+  struct EndpointsMiddleConfig;
   
   class KinkFinder
   {		
@@ -52,7 +52,8 @@ namespace cimrman {
     datamodel::Point kink_point;
     
     Status status = Status::UNPROCESSED;
-    const PolylinesConfig & config;
+    const VerticalAlignmentConfig & vertical_alignment_config;
+    const EndpointsMiddleConfig & endpoints_middle_config;
     const Geometry & geom;
     
     
@@ -100,7 +101,8 @@ namespace cimrman {
 
     KinkFinder( datamodel::TrackHdl _track1, datamodel::PointHdl _endpoint1,
                 datamodel::TrackHdl _track2, datamodel::PointHdl _endpoint2,
-                const PolylinesConfig & _config,
+                const VerticalAlignmentConfig & _vertical_alignment_config,
+                const EndpointsMiddleConfig & _endpoints_middle_config,
                 const Geometry & _geom);
 
     void process( ConnectionStrategy strategy );

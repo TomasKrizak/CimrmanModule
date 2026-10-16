@@ -20,13 +20,6 @@ using namespace cimrman::datamodel;
 
 namespace cimrman {
  
-  ElectronRecMode electron_recmode_from_label(const std::string & label_)
-  {
-    if (label_ == "polyline") return ElectronRecMode::polyline;
-    if (label_ == "line") return ElectronRecMode::line;
-    return ElectronRecMode::undefined;
-  }
- 
   void CimrmanAlgoConfig::parse(const datatools::properties & config_)
   {
     //=======================================================
@@ -44,14 +37,6 @@ namespace cimrman {
 
     DT_LOG_DEBUG(this->verbosity, "Loading configuration...");
 
-    if (config_.has_key("electron_mode")) {
-      std::string elRecModeLabel = config_.fetch_string("electron_mode");
-      auto elRecMode = electron_recmode_from_label(elRecModeLabel);
-      DT_THROW_IF(elRecMode == ElectronRecMode::undefined,
-                  std::logic_error,
-                  "Undefined event reconstruction mode " << std::quoted(elRecModeLabel));
-      this->electron_mode = elRecMode;
-    }
     
     if (config_.has_flag("visualization_2D")) {
       this->visualization_2D = true;
@@ -73,6 +58,12 @@ namespace cimrman {
       DT_LOG_DEBUG(this->verbosity, "Alpha tracking enabled");
     }
     
+    if (config_.has_flag("reconstruct_electrons")) {
+      this->reconstruct_electrons = true;
+      DT_LOG_DEBUG(this->verbosity, "Electron tracking enabled");
+    }
+    
+    
     if (config_.has_flag("keep_only_best_solutions")) {
       this->keep_only_best_solutions = true;
       DT_LOG_DEBUG(this->verbosity, "Keeping only best solutions");
@@ -91,7 +82,23 @@ namespace cimrman {
                   "Invalid default sigma for drift radius"); 
       this->default_sigma_r = value / CLHEP::mm;
     }
-  
+
+    if (config_.has_flag("try_vertical_alignment")) {
+      this->try_vertical_alignment = true;
+      DT_LOG_DEBUG(this->verbosity, "Vertical alignment trajectory connection strategy enabled");
+    }
+    
+    if (config_.has_flag("try_endpoints_middle")) {
+      this->try_endpoints_middle = true;
+      DT_LOG_DEBUG(this->verbosity, "Endpoints middle trajectory connection strategy enabled");
+    }
+    
+    if (config_.has_flag("allow_trajectory_refinement")) {
+      this->allow_trajectory_refinement = true;
+      DT_LOG_DEBUG(this->verbosity, "Trajectory refinement enabled");
+    }
+    
+    
     //=======================================================
     //############# Electron clustering config ##############
     //=======================================================
@@ -154,7 +161,7 @@ namespace cimrman {
       DT_LOG_DEBUG(this->verbosity, "clustering.sinograms.uncertainty: " 
                                     << this->clustering.uncertainty << "mm"); 
     }
-    
+     /*
     if (config_.has_key("clustering.sinograms.max_initial_precision_r")) {
       this->clustering.max_initial_precision_r =
         config_.fetch_real_with_explicit_dimension("clustering.sinograms.max_initial_precision_r",
@@ -162,7 +169,7 @@ namespace cimrman {
       DT_LOG_DEBUG(this->verbosity, "clustering.sinograms.max_initial_precision_r: " 
                                     << this->clustering.max_initial_precision_r << "mm"); 
 
-    }
+    }*/
     
     ///=======================================================
     ///############## Alpha clustering config ################
@@ -175,27 +182,27 @@ namespace cimrman {
                                     << this->alphas.clustering_resolution_phi << " bins"); 
     }    
     
-    if (config_.has_key("alphas.max_possible_drift_time")) {
-      this->alphas.max_possible_drift_time =
-        config_.fetch_real_with_explicit_dimension("alphas.max_possible_drift_time",
+    if (config_.has_key("alphas.max_drift_time")) {
+      this->alphas.max_drift_time =
+        config_.fetch_real_with_explicit_dimension("alphas.max_drift_time",
                                                    "time");
 		  
-		  DT_THROW_IF(this->alphas.max_possible_drift_time < 100.0 * CLHEP::ns,
+		  DT_THROW_IF(this->alphas.max_drift_time < 100.0 * CLHEP::ns,
 		              std::logic_error,
-		              "Invalid alphas.max_possible_drift_time value - too strict"); 
-      DT_LOG_DEBUG(this->verbosity, "alphas.max_possible_drift_time: " 
-                                    << this->alphas.max_possible_drift_time << "ns");   
+		              "Invalid alphas.max_drift_time value - too strict"); 
+      DT_LOG_DEBUG(this->verbosity, "alphas.max_drift_time: " 
+                                    << this->alphas.max_drift_time << "ns");   
     }
     
-    if (config_.has_key("alphas.min_possible_drift_time")) {
-      this->alphas.min_possible_drift_time =
-        config_.fetch_real_with_explicit_dimension("alphas.min_possible_drift_time",
+    if (config_.has_key("alphas.min_drift_time")) {
+      this->alphas.min_drift_time =
+        config_.fetch_real_with_explicit_dimension("alphas.min_drift_time",
                                                    "time");
-      DT_THROW_IF(this->alphas.min_possible_drift_time < 0.0 * CLHEP::ns,
+      DT_THROW_IF(this->alphas.min_drift_time < 0.0 * CLHEP::ns,
 		              std::logic_error,
-		              "Invalid alphas.min_possible_drift_time value - negative time");   
-      DT_LOG_DEBUG(this->verbosity, "alphas.min_possible_drift_time: " 
-                                    << this->alphas.min_possible_drift_time << "ns"); 
+		              "Invalid alphas.min_drift_time value - negative time");   
+      DT_LOG_DEBUG(this->verbosity, "alphas.min_drift_time: " 
+                                    << this->alphas.min_drift_time << "ns"); 
     }
     
     if (config_.has_key("alphas.time_step")) {
@@ -240,6 +247,13 @@ namespace cimrman {
                                     << this->alphas.phi_step / CLHEP::deg << " degrees");
     }
     
+    if (config_.has_key("alphas.sinograms.resolution_r")) {
+      this->alphas.resolution_r =
+        config_.fetch_integer_scalar("alphas.sinograms.resolution_r"); 
+      DT_LOG_DEBUG(this->verbosity, "alphas.sinograms.resolution_r: " 
+                                    << this->alphas.resolution_r << " bins");  
+    }
+    
     if (config_.has_key("alphas.sinograms.delta_r")) {
       this->alphas.delta_r =
         config_.fetch_real_with_explicit_dimension("alphas.sinograms.delta_r",
@@ -251,12 +265,6 @@ namespace cimrman {
                                     << this->alphas.delta_r << "mm");   
     }
     
-    if (config_.has_key("alphas.sinograms.resolution_r")) {
-      this->alphas.resolution_r =
-        config_.fetch_integer_scalar("alphas.sinograms.resolution_r"); 
-      DT_LOG_DEBUG(this->verbosity, "alphas.sinograms.resolution_r: " 
-                                    << this->alphas.resolution_r << " bins");  
-    }
     
     if (config_.has_key("alphas.sinograms.uncertainty")) {
       this->alphas.uncertainty =
@@ -274,146 +282,189 @@ namespace cimrman {
     ///########## Vertical alignment strategy    #############
     ///=======================================================
     
-    if (config_.has_key("polylines.max_vertical_distance")) {
-      this->polylines.max_vertical_distance =
-        config_.fetch_real_with_explicit_dimension("polylines.max_vertical_distance",
+    if (config_.has_key("vertical_alignment.max_kink_distance_to_tracks")) {
+      this->vertical_alignment.max_kink_distance_to_tracks =
+        config_.fetch_real_with_explicit_dimension("vertical_alignment.max_kink_distance_to_tracks",
                                                    "length");
-      DT_THROW_IF(this->polylines.max_vertical_distance < 0.0 * CLHEP::mm,
+      DT_THROW_IF(this->vertical_alignment.max_kink_distance_to_tracks < 0.0 * CLHEP::mm,
 	                std::logic_error,
-	                "Invalid polylines.max_vertical_distance value");
-      DT_LOG_DEBUG(this->verbosity, "polylines.max_vertical_distance: " 
-                                    << this->polylines.max_vertical_distance << "mm"); 
+	                "Invalid vertical_alignment.max_kink_distance_to_tracks value");
+      DT_LOG_DEBUG(this->verbosity, "vertical_alignment.max_kink_distance_to_tracks: " 
+                                    << this->vertical_alignment.max_kink_distance_to_tracks << "mm"); 
     }
     
-    if (config_.has_key("polylines.max_extention_distance")) {
-      this->polylines.max_extention_distance =
-        config_.fetch_real_with_explicit_dimension("polylines.max_extention_distance",
+    if (config_.has_key("vertical_alignment.max_endpoints_distance")) {
+      this->vertical_alignment.max_endpoints_distance =
+        config_.fetch_real_with_explicit_dimension("vertical_alignment.max_endpoints_distance",
                                                    "length");
-      DT_THROW_IF(this->polylines.max_extention_distance < 0.0 * CLHEP::mm,
+      DT_THROW_IF(this->vertical_alignment.max_endpoints_distance < 0.0 * CLHEP::mm,
 		              std::logic_error,
-		              "Invalid polylines.max_extention_distance value");
-      DT_LOG_DEBUG(this->verbosity, "polylines.max_extention_distance: " 
-                                    << this->polylines.max_extention_distance << "mm"); 
-    }
-    
-    if (config_.has_key("polylines.max_tracker_hits_distance")) {
-      this->polylines.max_tracker_hits_distance =
-        config_.fetch_real_with_explicit_dimension("polylines.max_tracker_hits_distance",
-                                                   "length");
-      DT_THROW_IF(this->polylines.max_tracker_hits_distance < 0.0 * CLHEP::mm,
-		              std::logic_error,
-		              "Invalid polylines.max_tracker_hits_distance value");
-      DT_LOG_DEBUG(this->verbosity, "polylines.max_tracker_hits_distance: " 
-                                    << this->polylines.max_tracker_hits_distance << "mm"); 
-    }
-    
-    if (config_.has_key("polylines.max_kink_angle")) {
-      this->polylines.max_kink_angle =
-        config_.fetch_real_with_explicit_dimension("polylines.max_kink_angle",
-                                                   "angle");
-      DT_THROW_IF(this->polylines.max_kink_angle < 0.0 * CLHEP::deg 
-                || this->polylines.max_kink_angle > 180.0 * CLHEP::deg,
-		            std::logic_error,
-		            "Invalid polylines.max_kink_angle value");
-      DT_LOG_DEBUG(this->verbosity, "polylines.max_kink_angle: " 
-                                    << this->polylines.max_kink_angle / CLHEP::deg << " degrees"); 
+		              "Invalid vertical_alignment.max_endpoints_distance value");
+      DT_LOG_DEBUG(this->verbosity, "vertical_alignment.max_endpoints_distance: " 
+                                    << this->vertical_alignment.max_endpoints_distance << "mm"); 
     }
    
-    
-    if (config_.has_key("polylines.min_distance_from_foil")) {
-      this->polylines.min_distance_from_foil =
-        config_.fetch_real_with_explicit_dimension("polylines.min_distance_from_foil",
+    if (config_.has_key("vertical_alignment.max_tracker_hits_distance")) {
+      this->vertical_alignment.max_tracker_hits_distance =
+        config_.fetch_real_with_explicit_dimension("vertical_alignment.max_tracker_hits_distance",
                                                    "length");
-      DT_THROW_IF(this->polylines.min_distance_from_foil < 0.0 * CLHEP::mm,
+      DT_THROW_IF(this->vertical_alignment.max_tracker_hits_distance < 0.0 * CLHEP::mm,
 		              std::logic_error,
-		              "Invalid polylines.min_distance_from_foil value"); 
-      DT_LOG_DEBUG(this->verbosity, "polylines.min_distance_from_foil: " 
-                                    << this->polylines.min_distance_from_foil << "mm");  
+		              "Invalid vertical_alignment.max_tracker_hits_distance value");
+      DT_LOG_DEBUG(this->verbosity, "vertical_alignment.max_tracker_hits_distance: " 
+                                    << this->vertical_alignment.max_tracker_hits_distance << "mm"); 
     }
-    
-    if (config_.has_key("polylines.min_distance_from_main_walls")) {
-      this->polylines.min_distance_from_main_walls =
-        config_.fetch_real_with_explicit_dimension("polylines.min_distance_from_main_walls",
-                                                   "length");
-      DT_THROW_IF(this->polylines.min_distance_from_main_walls < 0.0 * CLHEP::mm,
-		              std::logic_error,
-		              "Invalid polylines.min_distance_from_main_walls value"); 
-      DT_LOG_DEBUG(this->verbosity, "polylines.min_distance_from_main_walls: " 
-                                    << this->polylines.min_distance_from_main_walls << "mm");   
-    }
-    
-    if (config_.has_key("polylines.min_distance_from_X_walls")) {
-      this->polylines.min_distance_from_X_walls =
-        config_.fetch_real_with_explicit_dimension("polylines.min_distance_from_X_walls",
-                                                   "length");
-      DT_THROW_IF(this->polylines.min_distance_from_X_walls < 0.0 * CLHEP::mm,
-		              std::logic_error,
-		              "Invalid polylines.min_distance_from_X_walls value");  
-      DT_LOG_DEBUG(this->verbosity, "polylines.min_distance_from_X_walls: " 
-                                    << this->polylines.min_distance_from_X_walls << "mm");  
-    }
-    
-    
-    ///=======================================================
-    ///########## polyline reconstruction config #############
-    ///########## Trajectory extension           #############
-    ///=======================================================
-    
-    
-    if (config_.has_key("polylines.max_trajectories_middlepoint_distance")) {
-      this->polylines.max_trajectories_middlepoint_distance =
-        config_.fetch_real_with_explicit_dimension("polylines.max_trajectories_middlepoint_distance",
-                                                   "length");
-      DT_THROW_IF(this->polylines.max_trajectories_middlepoint_distance < 0.0 * CLHEP::mm,
-		            std::logic_error,
-		            "Invalid polylines.max_trajectories_middlepoint_distance value");
-      DT_LOG_DEBUG(this->verbosity, "polylines.max_trajectories_middlepoint_distance: " 
-                                    << this->polylines.max_trajectories_middlepoint_distance << "mm"); 
-    }
-    
-    
-    if (config_.has_key("polylines.max_trajectory_endpoints_distance")) {
-      this->polylines.max_trajectory_endpoints_distance =
-        config_.fetch_real_with_explicit_dimension("polylines.max_trajectory_endpoints_distance",
-                                                   "length");
-      DT_THROW_IF(this->polylines.max_trajectory_endpoints_distance < 0.0 * CLHEP::mm,
-		              std::logic_error,
-		              "Invalid polylines.max_trajectory_endpoints_distance value");
-      DT_LOG_DEBUG(this->verbosity, "polylines.max_trajectory_endpoints_distance: " 
-                                    << this->polylines.max_trajectory_endpoints_distance << "mm"); 
-    }
-    
-    if (config_.has_key("polylines.max_trajectory_connection_angle")) {
-      this->polylines.max_trajectory_connection_angle =
-        config_.fetch_real_with_explicit_dimension("polylines.max_trajectory_connection_angle",
+   
+    if (config_.has_key("vertical_alignment.min_kink_angle")) {
+      this->vertical_alignment.min_kink_angle =
+        config_.fetch_real_with_explicit_dimension("vertical_alignment.min_kink_angle",
                                                    "angle");
-        
-      DT_THROW_IF(this->polylines.max_trajectory_connection_angle < 0.0 * CLHEP::deg 
-                || this->polylines.max_trajectory_connection_angle > 180.0 * CLHEP::deg,
+      DT_THROW_IF(this->vertical_alignment.min_kink_angle < 0.0 * CLHEP::deg 
+                || this->vertical_alignment.min_kink_angle > 180.0 * CLHEP::deg,
 		            std::logic_error,
-		            "Invalid polylines.max_trajectory_connection_angle value");
-      DT_LOG_DEBUG(this->verbosity, "polylines.max_trajectory_connection_angle: " 
-                                    << this->polylines.max_trajectory_connection_angle / CLHEP::deg << " degrees");
+		            "Invalid vertical_alignment.min_kink_angle value");
+      DT_LOG_DEBUG(this->verbosity, "vertical_alignment.min_kink_angle: " 
+                                    << this->vertical_alignment.min_kink_angle / CLHEP::deg << " degrees"); 
     }
+    
+    if (config_.has_key("vertical_alignment.max_kink_angle")) {
+      this->vertical_alignment.max_kink_angle =
+        config_.fetch_real_with_explicit_dimension("vertical_alignment.max_kink_angle",
+                                                   "angle");
+      DT_THROW_IF(this->vertical_alignment.max_kink_angle < 0.0 * CLHEP::deg 
+                || this->vertical_alignment.max_kink_angle > 180.0 * CLHEP::deg,
+		            std::logic_error,
+		            "Invalid vertical_alignment.max_kink_angle value");
+      DT_LOG_DEBUG(this->verbosity, "vertical_alignment.max_kink_angle: " 
+                                    << this->vertical_alignment.max_kink_angle / CLHEP::deg << " degrees"); 
+    }
+   
+    if (config_.has_key("vertical_alignment.min_distance_from_foil")) {
+      this->vertical_alignment.min_distance_from_foil =
+        config_.fetch_real_with_explicit_dimension("vertical_alignment.min_distance_from_foil",
+                                                   "length");
+      DT_THROW_IF(this->vertical_alignment.min_distance_from_foil < 0.0 * CLHEP::mm,
+		              std::logic_error,
+		              "Invalid vertical_alignment.min_distance_from_foil value"); 
+      DT_LOG_DEBUG(this->verbosity, "vertical_alignment.min_distance_from_foil: " 
+                                    << this->vertical_alignment.min_distance_from_foil << "mm");  
+    }
+    
+    if (config_.has_key("vertical_alignment.min_distance_from_main_walls")) {
+      this->vertical_alignment.min_distance_from_main_walls =
+        config_.fetch_real_with_explicit_dimension("vertical_alignment.min_distance_from_main_walls",
+                                                   "length");
+      DT_THROW_IF(this->vertical_alignment.min_distance_from_main_walls < 0.0 * CLHEP::mm,
+		              std::logic_error,
+		              "Invalid vertical_alignment.min_distance_from_main_walls value"); 
+      DT_LOG_DEBUG(this->verbosity, "vertical_alignment.min_distance_from_main_walls: " 
+                                    << this->vertical_alignment.min_distance_from_main_walls << "mm");   
+    }
+    
+    if (config_.has_key("vertical_alignment.min_distance_from_X_walls")) {
+      this->vertical_alignment.min_distance_from_X_walls =
+        config_.fetch_real_with_explicit_dimension("vertical_alignment.min_distance_from_X_walls",
+                                                   "length");
+      DT_THROW_IF(this->vertical_alignment.min_distance_from_X_walls < 0.0 * CLHEP::mm,
+		              std::logic_error,
+		              "Invalid vertical_alignment.min_distance_from_X_walls value");  
+      DT_LOG_DEBUG(this->verbosity, "vertical_alignment.min_distance_from_X_walls: " 
+                                    << this->vertical_alignment.min_distance_from_X_walls << "mm");  
+    }
+    
     
     ///=======================================================
     ///########## polyline reconstruction config #############
-    ///########## Trajectory extension           #############
+    ///########## Endpoints middle strateg       #############
     ///=======================================================
     
     
-    if (config_.has_key("polylines.hit_association_distance")) {
-      this->polylines.hit_association_distance =
-        config_.fetch_real_with_explicit_dimension("polylines.hit_association_distance",
+    if (config_.has_key("endpoints_middle.max_trajectories_middlepoint_distance")) {
+      this->endpoints_middle.max_trajectories_middlepoint_distance =
+        config_.fetch_real_with_explicit_dimension("endpoints_middle.max_trajectories_middlepoint_distance",
                                                    "length");
-      DT_LOG_DEBUG(this->verbosity, "polylines.hit_association_distance: " 
-                    << this->polylines.hit_association_distance << "mm");
+      DT_THROW_IF(this->endpoints_middle.max_trajectories_middlepoint_distance < 0.0 * CLHEP::mm,
+		            std::logic_error,
+		            "Invalid endpoints_middle.max_trajectories_middlepoint_distance value");
+      DT_LOG_DEBUG(this->verbosity, "endpoints_middle.max_trajectories_middlepoint_distance: " 
+                                    << this->endpoints_middle.max_trajectories_middlepoint_distance << "mm"); 
+    }
+    
+    if (config_.has_key("endpoints_middle.max_endpoints_distance")) {
+      this->endpoints_middle.max_endpoints_distance =
+        config_.fetch_real_with_explicit_dimension("endpoints_middle.max_endpoints_distance",
+                                                   "length");
+      DT_THROW_IF(this->endpoints_middle.max_endpoints_distance < 0.0 * CLHEP::mm,
+		              std::logic_error,
+		              "Invalid endpoints_middle.max_endpoints_distance value");
+      DT_LOG_DEBUG(this->verbosity, "endpoints_middle.max_endpoints_distance: " 
+                                    << this->endpoints_middle.max_endpoints_distance << "mm"); 
+    }
+   
+    if (config_.has_key("endpoints_middle.max_tracker_hits_distance")) {
+      this->endpoints_middle.max_tracker_hits_distance =
+        config_.fetch_real_with_explicit_dimension("endpoints_middle.max_tracker_hits_distance",
+                                                   "length");
+      DT_THROW_IF(this->endpoints_middle.max_tracker_hits_distance < 0.0 * CLHEP::mm,
+		              std::logic_error,
+		              "Invalid endpoints_middle.max_tracker_hits_distance value");
+      DT_LOG_DEBUG(this->verbosity, "endpoints_middle.max_tracker_hits_distance: " 
+                                    << this->endpoints_middle.max_tracker_hits_distance << "mm"); 
+    }
+   
+    if (config_.has_key("endpoints_middle.min_kink_angle")) {
+      this->endpoints_middle.min_kink_angle =
+        config_.fetch_real_with_explicit_dimension("endpoints_middle.min_kink_angle",
+                                                   "angle");
+      DT_THROW_IF(this->endpoints_middle.min_kink_angle < 0.0 * CLHEP::deg 
+                || this->endpoints_middle.min_kink_angle > 180.0 * CLHEP::deg,
+		            std::logic_error,
+		            "Invalid endpoints_middle.min_kink_angle value");
+      DT_LOG_DEBUG(this->verbosity, "endpoints_middle.min_kink_angle: " 
+                                    << this->endpoints_middle.min_kink_angle / CLHEP::deg << " degrees"); 
+    }
+    
+    if (config_.has_key("endpoints_middle.max_kink_angle")) {
+      this->endpoints_middle.max_kink_angle =
+        config_.fetch_real_with_explicit_dimension("endpoints_middle.max_kink_angle",
+                                                   "angle");
+      DT_THROW_IF(this->endpoints_middle.max_kink_angle < 0.0 * CLHEP::deg 
+                || this->endpoints_middle.max_kink_angle > 180.0 * CLHEP::deg,
+		            std::logic_error,
+		            "Invalid endpoints_middle.max_kink_angle value");
+      DT_LOG_DEBUG(this->verbosity, "endpoints_middle.max_kink_angle: " 
+                                    << this->endpoints_middle.max_kink_angle / CLHEP::deg << " degrees"); 
+    }
+    
+    
+    ///==================================================================================
+    ///### Trajectory refinement                                                      ###
+    ///### adding missed hits with lower threshold and potential trajectory extention ###
+    ///==================================================================================
+    
+    if (config_.has_key("trajectory_refinement.max_extention_distance")) {
+      this->trajectory_refinement.max_extention_distance =
+        config_.fetch_real_with_explicit_dimension("trajectory_refinement.max_extention_distance",
+                                                   "length");
+      DT_THROW_IF(this->trajectory_refinement.max_extention_distance < 0.0 * CLHEP::mm,
+		              std::logic_error,
+		              "Invalid trajectory_refinement.max_extention_distance value");
+      DT_LOG_DEBUG(this->verbosity, "trajectory_refinement.max_extention_distance: " 
+                                    << this->trajectory_refinement.max_extention_distance << "mm"); 
+    }
+    
+    if (config_.has_key("trajectory_refinement.hit_association_distance")) {
+      this->trajectory_refinement.hit_association_distance =
+        config_.fetch_real_with_explicit_dimension("trajectory_refinement.hit_association_distance",
+                                                   "length");
+      DT_LOG_DEBUG(this->verbosity, "trajectory_refinement.hit_association_distance: " 
+                    << this->trajectory_refinement.hit_association_distance << "mm");
     }
     else
     {
-      this->polylines.hit_association_distance = clustering.hit_association_distance;
-      DT_LOG_DEBUG(this->verbosity, "polylines.hit_association_distance: " 
-                    << this->polylines.hit_association_distance << "mm");
+      this->trajectory_refinement.hit_association_distance = clustering.hit_association_distance;
+      DT_LOG_DEBUG(this->verbosity, "trajectory_refinement.hit_association_distance: " 
+                    << this->trajectory_refinement.hit_association_distance << "mm");
     }
     
     return;
@@ -449,22 +500,21 @@ namespace cimrman {
 
   bool Algos::is_initialized() const
   {
-    return _config_.electron_mode != ElectronRecMode::undefined;
+    return initialized;
   }
   
   void Algos::initialize(const CimrmanAlgoConfig & elrecconf_)
   {
+    initialized = true;
+  
     _config_ = elrecconf_;
-    DT_THROW_IF(_config_.electron_mode == ElectronRecMode::undefined,
-                std::logic_error,
-                "Undefined reconstruction mode");
 
     if (_config_.visualization_2D || _config_.visualization_3D){
       _visu_ = std::make_unique<Visu>(_geom_);
     }
     
     // initializing prompt sinogram manager
-    if(_config_.electron_mode != ElectronRecMode::undefined)
+    if(_config_.reconstruct_electrons)
     {
       prompt_sinogram_manager.prompt = true;
 
@@ -538,12 +588,12 @@ namespace cimrman {
     for(auto & precluster : _event_->get_preclusters())
     {
       // Step 2: clustering
-      if (_config_.electron_mode != ElectronRecMode::undefined) {
+      if (_config_.reconstruct_electrons) {
         DT_LOG_DEBUG(_config_.verbosity, 
         "  Step 2: Prompt tracker hit clustering");
         electron_clustering( precluster );
       }
-      
+  
       if (_config_.reconstruct_alphas) {
         DT_LOG_DEBUG(_config_.verbosity, 
           "  Step 2: Delayed tracker hit clustering");
@@ -571,13 +621,15 @@ namespace cimrman {
         create_line_trajectories(precluster_solution);
       
         // Step 6: building polylines
-        if( precluster->is_prompt() && 
-            _config_.electron_mode == ElectronRecMode::polyline ) {      
-          DT_LOG_DEBUG(_config_.verbosity, 
-            "    Step 6: Creating polyline trajectories");
-          build_polylines(precluster_solution);
-          refine_polylines(precluster_solution);
-          refine_clustering(precluster_solution);
+        if( precluster->is_prompt() ){
+          if(_config_.try_vertical_alignment || _config_.try_endpoints_middle) {      
+            DT_LOG_DEBUG(_config_.verbosity, 
+              "    Step 6: Creating polyline trajectories");
+            build_polylines(precluster_solution);
+            refine_polylines(precluster_solution);
+          }
+          if(_config_.allow_trajectory_refinement)
+            refine_clustering(precluster_solution);
         }
         
         // Step 7: trajectory evaluation
@@ -1157,8 +1209,8 @@ namespace cimrman {
   // estimates the possible range for the missing reference time based on anodic times of provided hits
   void Algos::find_reference_time_bounds(DelayedClusterHdl delayed_cluster)
   {
-    const double min_possible_drift_time = _config_.alphas.min_possible_drift_time; // in nanoseconds
-    const double max_possible_drift_time = _config_.alphas.max_possible_drift_time; // in nanoseconds
+    const double min_drift_time = _config_.alphas.min_drift_time; // in nanoseconds
+    const double max_drift_time = _config_.alphas.max_drift_time; // in nanoseconds
     
     auto & tracker_hits = delayed_cluster->get_tracker_hits();
     
@@ -1169,15 +1221,15 @@ namespace cimrman {
     //std::for_each(tracker_hits.begin(), tracker_hits.end(), [](const auto& hit){ std::cout << hit->get_delayed_time() << std::endl; return;} );
     
     // optimal case
-    double lower_bound = tracker_hits.back()->get_delayed_time() - max_possible_drift_time;           
-    double upper_bound = tracker_hits.front()->get_delayed_time() - min_possible_drift_time;
+    double lower_bound = tracker_hits.back()->get_delayed_time() - max_drift_time;           
+    double upper_bound = tracker_hits.front()->get_delayed_time() - min_drift_time;
     
     // TODO what to do to make this better??
     for(auto it = tracker_hits.rbegin()+1; it != tracker_hits.rend(); ++it)
     {
       if( lower_bound > upper_bound )
       {
-        lower_bound = (*it)->get_delayed_time() - max_possible_drift_time; 
+        lower_bound = (*it)->get_delayed_time() - max_drift_time; 
       }
       else
       {
@@ -1664,29 +1716,32 @@ namespace cimrman {
   void Algos::build_polylines(PreclusterSolutionHdl precluster_solution)
   {  
     // the connection process it outsourced to a dedicated TrajectoryBuilder worker class
-    TrajectoryBuilder builder(precluster_solution, _config_.polylines, _geom_ );
+    TrajectoryBuilder builder(precluster_solution, _config_.vertical_alignment, _config_.endpoints_middle, _geom_);
+     
     
     // VERTICAL_ALIGNMENT strategy designed for bigger kinks 
-      //if( _config_.polylines.try_vertical_alignment )
+    if( _config_.try_vertical_alignment )
     {
       builder.add_connection_strategy(KinkFinder::ConnectionStrategy::VERTICAL_ALIGNMENT);    
     }
     
     // ENDPOINTS_MIDDLE strategy designed for smaller kinks
-      //if( _config_.polylines.try_endpoints_middle )
+    if( _config_.try_endpoints_middle )
     {
       builder.add_connection_strategy(KinkFinder::ConnectionStrategy::ENDPOINTS_MIDDLE);
     }
     
     builder.process();
-
+    
+    /*
     // CLOSEST_APPROACH strategy
-      //if( _config_.polylines.try_closest_approach )
+    if( _config_.try_closest_approach )
     {
       builder.add_connection_strategy(KinkFinder::ConnectionStrategy::CLOSEST_APPROACH);    
     }
     
-    builder.process();
+    builder.process();*/
+    
   }
   
   // step 6 (polyline refinement)
@@ -1757,8 +1812,8 @@ namespace cimrman {
   // if it can be associated to some segment of some trajectory
   void Algos::refine_clustering(PreclusterSolutionHdl precluster_solution)
   {
-    const double distance_threshold     = _config_.polylines.hit_association_distance;
-    const double max_extention_distance = _config_.polylines.max_extention_distance;
+    const double distance_threshold     = _config_.trajectory_refinement.hit_association_distance;
+    const double max_extention_distance = _config_.trajectory_refinement.max_extention_distance;
     
     auto & unclustered_tracker_hits = precluster_solution->get_unclustered_tracker_hits();
     auto & trajectories = precluster_solution->get_trajectories();

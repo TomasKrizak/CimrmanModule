@@ -28,16 +28,6 @@
 namespace cimrman {
 
   namespace dm = datamodel;
-  
-  /// Event tracking reconstruction mode
-  enum class ElectronRecMode
-    {
-      undefined,
-      polyline,  /// electron polyline trajectory reconstruction
-      line,  /// electron line trajectory reconstruction
-    };
-
-  ElectronRecMode event_recmode_from_label(const std::string & label_);
 
   // Config for clustering algorithms
   struct ClusteringConfing
@@ -48,17 +38,17 @@ namespace cimrman {
     uint32_t iterations = 2u;
     uint32_t resolution_phi = 100u; // Number of bins
     uint32_t resolution_r = 200u; // Number of bins
-    double max_initial_precision_r = 6.0 * CLHEP::mm; 
     double zoom_factor = 10.0;
     double uncertainty = 3.0 * CLHEP::mm;
+    //double max_initial_precision_r = 6.0 * CLHEP::mm; // unused optimization possibility
   };
 
   /// Config for alpha clustering algorithms
   struct AlphaConfig
   {  
     uint32_t clustering_resolution_phi = 100u; // Number of bins  
-    double min_possible_drift_time = 0.0 * CLHEP::ns; 
-    double max_possible_drift_time = 5000.0 * CLHEP::ns; 
+    double min_drift_time = 0.0 * CLHEP::ns; 
+    double max_drift_time = 5000.0 * CLHEP::ns; 
     double time_step = 50.0 * CLHEP::ns; 
 
     bool save_sinograms = false;
@@ -71,26 +61,36 @@ namespace cimrman {
   };
 
   /// Config for kinked trajectory reconstruction algorithms
-  struct PolylinesConfig
+  struct VerticalAlignmentConfig
   {  
     // sharp kink reconstruction
-    double max_vertical_distance = 40.0 * CLHEP::mm; 
+    double max_kink_distance_to_tracks = 40.0 * CLHEP::mm; 
+    double max_endpoints_distance = 100.0 * CLHEP::mm;
     double max_tracker_hits_distance = 100.0 * CLHEP::mm; 
     double min_kink_angle = 0.0 * CLHEP::deg;
     double max_kink_angle = 120.0 * CLHEP::deg;
     double min_distance_from_foil = 75.0 * CLHEP::mm; 
     double min_distance_from_main_walls = 50.0 * CLHEP::mm;
     double min_distance_from_X_walls = 50.0 * CLHEP::mm;
-    
+  };
+  
+  /// Config for kinked trajectory reconstruction algorithms
+  struct EndpointsMiddleConfig
+  {   
     // small kink reconstruction
     double max_trajectories_middlepoint_distance = 15.0 * CLHEP::mm; 
-    double max_trajectory_endpoints_distance = 100.0 * CLHEP::mm;
-    double min_trajectory_connection_angle = 0.0 * CLHEP::deg;
-    double max_trajectory_connection_angle = 40.0 * CLHEP::deg;
-    
-    // clustering refinements
+    double max_endpoints_distance = 100.0 * CLHEP::mm;
+    double max_tracker_hits_distance = 100.0 * CLHEP::mm; 
+    double min_kink_angle = 0.0 * CLHEP::deg;
+    double max_kink_angle = 40.0 * CLHEP::deg;
+  };
+  
+  /// Config for kinked trajectory reconstruction algorithms
+  struct TrajectoryRefinementConfig
+  {   
+    // clustering refinement
     double max_extention_distance = 120.0 * CLHEP::mm;  
-    double hit_association_distance = 6.0 * CLHEP::mm;
+    double hit_association_distance = 12.0 * CLHEP::mm;
   };
   
   /// Configuration parameters for event tracking reconstruction
@@ -99,11 +99,16 @@ namespace cimrman {
     datatools::logger::priority verbosity = datatools::logger::PRIO_FATAL;    
     bool visualization_2D = false;
     bool visualization_3D = false;
-    ElectronRecMode electron_mode = ElectronRecMode::undefined;
+    
+    //ElectronRecMode electron_mode = ElectronRecMode::undefined;
     bool reconstruct_alphas = false;
-    bool use_provided_preclustering = false;
+    bool reconstruct_electrons = true;
+    bool use_provided_preclustering = true;
     bool keep_only_best_solutions = false;
     
+    bool try_vertical_alignment = true;
+    bool try_endpoints_middle = true;
+    bool allow_trajectory_refinement = true;
     
     bool force_default_sigma_r = false; ///< Flag to force the default sigma r value for tracker hits
     double default_sigma_r = 2.0 * CLHEP::mm;
@@ -114,8 +119,14 @@ namespace cimrman {
     /// Configuration of alpha clustering algorihtms
     AlphaConfig alphas;
       
-    /// Configuration of polyline reconstruction algorihtms 
-    PolylinesConfig polylines;
+    /// Configuration of polyline reconstruction algorihtms using primary strategy 
+    VerticalAlignmentConfig vertical_alignment;
+    
+    /// Configuration of polyline reconstruction algorihtms using primary strategy 
+    EndpointsMiddleConfig endpoints_middle;
+    
+    /// Configuration of polyline reconstruction algorihtms using primary strategy 
+    TrajectoryRefinementConfig trajectory_refinement;
   
     void parse(const datatools::properties & config_);
   };
@@ -207,6 +218,8 @@ namespace cimrman {
 
   private:
 
+    bool initialized = false;
+    
     const Geometry & _geom_; ///< Geometry informations
     CimrmanAlgoConfig _config_; ///< Configuration
     dm::Event * _event_ = nullptr; ///< Working event to be reconstructed
